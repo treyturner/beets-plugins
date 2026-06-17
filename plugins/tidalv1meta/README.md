@@ -28,13 +28,13 @@ plugins:
 
 lyrics:
   sources:
-    - tidal
+    - tidalv1meta
     - lrclib
 
 fetchart:
   sources:
     - filesystem
-    - tidal
+    - tidalv1meta
     - coverart
 
 tidalv1meta:
