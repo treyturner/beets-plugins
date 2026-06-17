@@ -14,7 +14,7 @@ from .auth import AuthManager, TidalAuthError
 from .client import DEFAULT_API_BASE, TidalAPIError, TidalClient, cover_url
 
 
-class Tidal(Backend):  # type: ignore[misc]
+class TidalV1Meta(Backend):  # type: ignore[misc]
     def fetch(self, artist: str, title: str, album: str, length: int) -> Lyrics | None:
         try:
             client = client_from_config(beets_config["tidalv1meta"])
@@ -37,8 +37,8 @@ class Tidal(Backend):  # type: ignore[misc]
 
 class TidalArtSource(RemoteArtSource):  # type: ignore[misc]
     NAME = "TIDAL"
-    ID = "tidal"
-    VALID_MATCHING_CRITERIA = ["album"]
+    ID = "tidalv1meta"
+    VALID_MATCHING_CRITERIA = ["default"]
 
     def get(self, album: Any, plugin: Any, paths: Any) -> Any:
         try:
@@ -76,7 +76,7 @@ def client_from_config(config: Any) -> TidalClient:
 
 
 def register_sources() -> None:
-    cast(Any, lyrics_mod.BACKEND_BY_NAME).setdefault("tidal", Tidal)
+    cast(Any, lyrics_mod.BACKEND_BY_NAME).setdefault("tidalv1meta", TidalV1Meta)
     fetchart_mod.ART_SOURCES.add(TidalArtSource)
 
 
