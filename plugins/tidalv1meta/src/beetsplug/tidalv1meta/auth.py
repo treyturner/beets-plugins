@@ -9,12 +9,15 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, cast
 
+import confuse
 import requests
+from beets import config as beets_config
 
 from .http_types import HTTPSession, ResponseLike
 
 DEFAULT_AUTH_BASE = "https://auth.tidal.com/v1/oauth2"
 DEFAULT_SCOPE = "r_usr+w_usr+w_sub"
+DEFAULT_AUTH_CACHE_FILENAME = "tidalv1meta_token.json"
 
 
 class TidalAuthError(RuntimeError):
@@ -103,8 +106,7 @@ class TokenSet:
 
 
 def default_auth_cache_path() -> Path:
-    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    return config_home / "beets" / "tidalv1meta.json"
+    return Path(cast(Any, beets_config).config_dir()) / DEFAULT_AUTH_CACHE_FILENAME
 
 
 class AuthManager:
@@ -199,7 +201,7 @@ class AuthManager:
             token_expires_at=_config_value(config, "token_expires_at", None, int),
             country_code=os.environ.get("TIDAL_COUNTRY_CODE")
             or _config_value(config, "country_code", "US", str),
-            cache_path=_config_value(config, "auth_cache", str(default_auth_cache_path()), str),
+            cache_path=_config_filename(config, "auth_cache"),
             request_timeout=_config_value(config, "request_timeout", 15.0, float),
             session=session,
         )
@@ -382,6 +384,15 @@ def _config_value(config: Any, key: str, default: Any = None, value_type: Any = 
     except Exception:
         return default
     return default if value is None else value
+
+
+def _config_filename(config: Any, key: str) -> Path:
+    try:
+        view = config[key]
+        value = view.get(cast(Any, confuse).Filename(in_app_dir=True))
+    except Exception:
+        return default_auth_cache_path()
+    return Path(cast(str, value)).expanduser()
 
 
 def _json_or_empty(response: ResponseLike) -> dict[str, Any]:

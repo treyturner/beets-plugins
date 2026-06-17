@@ -10,7 +10,7 @@ from beets.plugins import BeetsPlugin
 from .auth import (
     DEFAULT_AUTH_BASE,
     AuthManager,
-    default_auth_cache_path,
+    DEFAULT_AUTH_CACHE_FILENAME,
 )
 from .client import DEFAULT_API_BASE
 from .sources import register_sources
@@ -27,7 +27,7 @@ DEFAULT_CONFIG: dict[str, str | int | float | bool | None] = {
     "refresh_token": None,
     "token_expires_at": None,
     "country_code": "US",
-    "auth_cache": str(default_auth_cache_path()),
+    "auth_cache": DEFAULT_AUTH_CACHE_FILENAME,
     "request_timeout": 15.0,
     "search_limit": 10,
     "match_threshold": 0.78,
