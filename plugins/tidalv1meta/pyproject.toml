@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beets-tidal-v1-meta"
+version = "0.1.0"
+description = "beets plugin sources for TIDAL v1 lyrics and album art"
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
+license = { text = "MIT" }
+authors = [
+    { name = "Trey Turner" },
+]
+keywords = ["beets", "tidal", "lyrics", "album-art"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Framework :: Pytest",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Sound/Audio",
+]
+dependencies = [
+    "beets>=2.0",
+    "beautifulsoup4>=4.12",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+test = [
+    "mypy>=1.18",
+    "pyright>=1.1.410",
+    "pytest>=8",
+    "pytest-cov>=5",
+    "types-requests>=2.32",
+]
+
+[project.urls]
+Homepage = "https://github.com/treyturner/beets-tidal-v1-meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["beetsplug*"]
+namespaces = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers --strict-config --cov=beetsplug.tidalv1meta --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["beetsplug.tidalv1meta"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src/beetsplug/tidalv1meta"]
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+    "beets.*",
+    "beetsplug.*",
+]
+ignore_missing_imports = true
+
+[tool.pyright]
+include = ["src"]
+extraPaths = ["src"]
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
+reportMissingTypeStubs = "none"
