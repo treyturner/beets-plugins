@@ -1,0 +1,169 @@
+name: test
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/run-lint
+  determine:
+    needs: lint
+    runs-on: ubuntu-latest
+    outputs:
+      plugin_count: ${{ steps.detect.outputs.plugin_count }}
+      plugin_matrix: ${{ steps.detect.outputs.plugin_matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      - name: Capture changed files
+        id: changed-files
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          write_output_files: true
+      - name: Detect impacted plugins
+        id: detect
+        run: |
+          python scripts/detect_plugins.py \
+            --files-from "${{ steps.changed-files.outputs.all_changed_files_file }}" \
+            --allow-empty \
+            --allow-multiple \
+            --default all \
+            --github-output "$GITHUB_OUTPUT"
+  coverage:
+    needs: [lint, determine]
+    if: needs.determine.outputs.plugin_count != '0'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Checkout base
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Sync plugin environments (head)
+        run: ./scripts/sync_plugins.py
+      - name: Run coverage (head)
+        run: |
+          set -euo pipefail
+          PLUGINS=$(python - <<'PY'
+          from pathlib import Path
+          print(" ".join(sorted(p.name for p in Path("plugins").iterdir() if (p / "pyproject.toml").exists())))
+          PY
+          )
+          if [ -z "$PLUGINS" ]; then
+            echo "No plugins discovered; skipping coverage."
+            touch coverage.head.xml
+            exit 0
+          fi
+          rm -f coverage.head
+          last=""
+          for plugin in $PLUGINS; do
+            target="plugins/$plugin/tests"
+            if [ -d "$target" ]; then
+              echo "Running coverage for $plugin"
+              COVERAGE_FILE=coverage.head uv run --project "plugins/$plugin" coverage run --append -m pytest "$target" --cov="plugins/$plugin" --cov-report=term-missing
+              last=$plugin
+            fi
+          done
+          if [ -n "$last" ]; then
+            COVERAGE_FILE=coverage.head uv run --project "plugins/$last" coverage xml -o coverage.head.xml
+          else
+            echo "No plugin tests found; creating empty coverage report"
+            touch coverage.head.xml
+          fi
+      - name: Sync plugin environments (base)
+        if: github.event_name == 'pull_request'
+        working-directory: base
+        run: ./scripts/sync_plugins.py
+      - name: Run coverage (base)
+        id: base-coverage
+        if: github.event_name == 'pull_request'
+        working-directory: base
+        run: |
+          set -euo pipefail
+          PLUGINS=$(python - <<'PY'
+          from pathlib import Path
+          print(" ".join(sorted(p.name for p in Path("plugins").iterdir() if (p / "pyproject.toml").exists())))
+          PY
+          )
+          if [ -z "$PLUGINS" ]; then
+            echo "No plugins discovered; skipping coverage."
+            echo "has_plugins=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "has_plugins=true" >> "$GITHUB_OUTPUT"
+          rm -f coverage.base
+          last=""
+          for plugin in $PLUGINS; do
+            target="plugins/$plugin/tests"
+            if [ -d "$target" ]; then
+              echo "Running coverage for $plugin (base)"
+              COVERAGE_FILE=coverage.base uv run --project "plugins/$plugin" coverage run --append -m pytest "$target" --cov="plugins/$plugin" --cov-report=term-missing
+              last=$plugin
+            fi
+          done
+          if [ -n "$last" ]; then
+            COVERAGE_FILE=coverage.base uv run --project "plugins/$last" coverage xml -o coverage.base.xml
+          else
+            echo "No plugin tests found; creating empty coverage report"
+            touch coverage.base.xml
+          fi
+      - name: Move baseline coverage
+        if: github.event_name == 'pull_request' && steps.base-coverage.outputs.has_plugins == 'true'
+        run: mv base/coverage.base.xml coverage.base.xml
+      - name: Compare coverage (PRs must not regress)
+        if: github.event_name == 'pull_request' && steps.base-coverage.outputs.has_plugins == 'true'
+        run: uv run python scripts/compare_coverage.py --baseline coverage.base.xml --head coverage.head.xml
+      - name: Report coverage (push)
+        if: github.event_name != 'pull_request'
+        run: uv run python scripts/compare_coverage.py --head coverage.head.xml
+  tests:
+    needs: [lint, determine, coverage]
+    if: needs.determine.outputs.plugin_count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJson(needs.determine.outputs.plugin_matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Install tooling deps
+        run: uv sync --group dev
+      - name: Ensure plugin environment
+        run: ./scripts/sync_plugins.py "plugins/${{ matrix.plugin }}"
+      - name: Type check ${{ matrix.plugin }}
+        working-directory: plugins/${{ matrix.plugin }}
+        run: uv run mypy
+      - name: Run pytest for ${{ matrix.plugin }}
+        run: |
+          TARGET="plugins/${{ matrix.plugin }}/tests"
+          if [ -d "$TARGET" ]; then
+            uv run --project "plugins/${{ matrix.plugin }}" pytest "$TARGET"
+          else
+            echo "No tests for plugins/${{ matrix.plugin }}"
+          fi

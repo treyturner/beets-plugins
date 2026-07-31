@@ -1,0 +1,64 @@
+name: versioning
+
+on:
+  workflow_dispatch:
+    inputs:
+      plugin:
+        description: "Plugin directory name (or 'auto' to detect)"
+        required: true
+        default: "auto"
+      bump:
+        description: "Semver increment"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+      base_ref:
+        description: "Base ref/branch for change detection when plugin=auto"
+        required: false
+        default: "origin/main"
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/run-lint
+      - name: Prepare changed files list
+        if: ${{ inputs.plugin == 'auto' }}
+        run: |
+          git fetch origin "${{ inputs.base_ref }}"
+          git diff --name-only "${{ inputs.base_ref }}"...HEAD > /tmp/changed.txt
+      - name: Detect plugin
+        id: detect
+        run: |
+          if [ "${{ inputs.plugin }}" = "auto" ]; then
+            python scripts/detect_plugins.py \
+              --files-from /tmp/changed.txt \
+              --github-output "$GITHUB_OUTPUT"
+          else
+            python scripts/detect_plugins.py \
+              --plugin "${{ inputs.plugin }}" \
+              --github-output "$GITHUB_OUTPUT"
+          fi
+      - name: Bump version
+        id: bump
+        run: |
+          python scripts/bump_version.py \
+            --plugin "${{ steps.detect.outputs.plugin_name }}" \
+            --part "${{ inputs.bump }}" \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d # v7.2.0
+        with:
+          commit_message: >-
+            chore(${{ steps.detect.outputs.plugin_name }}): bump version to v${{ steps.bump.outputs.new_version }}
+          file_pattern: plugins/${{ steps.detect.outputs.plugin_name }}/pyproject.toml

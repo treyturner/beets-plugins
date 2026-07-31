@@ -1,0 +1,50 @@
+[project]
+name = "treyturner-beets-plugins"
+version = "0.0.0"
+description = "A uv-managed workspace for my Beets plugins."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Beets Plugins Maintainers" }
+]
+dependencies = []
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+default-groups = ["dev"]
+
+[dependency-groups]
+dev = [
+  "build>=1.2.1",
+  "mypy>=1.11.2",
+  "pre-commit>=3.8.0",
+  "ruff>=0.6.9",
+  "semver>=3.0.2",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+namespace_packages = true
+explicit_package_bases = true
+files = ["conftest.py", "plugins/conftest.py", "scripts"]
+
+
+
+
+[tool.hatch.build.targets.wheel]
+only-include = [
+  "README.md",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "README.md",
+  "LICENSE",
+  "pyproject.toml",
+]

@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+
+# Packaging
+build/
+dist/
+.eggs/
+*.egg-info/
+
+# Tooling
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.env
+plugins/*/.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+!/.vscode/
+!/.vscode/**
+!plugins/**/.vscode/
+!plugins/**/.vscode/**

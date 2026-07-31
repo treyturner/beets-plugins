@@ -1,0 +1,57 @@
+name: publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      plugin:
+        description: "Plugin directory name (or 'auto' to detect)"
+        required: true
+        default: "auto"
+      base_ref:
+        description: "Base ref/branch for change detection when plugin=auto"
+        required: false
+        default: "origin/main"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/run-lint
+      - name: Prepare changed files list
+        if: ${{ inputs.plugin == 'auto' }}
+        run: |
+          git fetch origin "${{ inputs.base_ref }}"
+          git diff --name-only "${{ inputs.base_ref }}"...HEAD > /tmp/changed.txt
+      - name: Detect plugin
+        id: detect
+        run: |
+          if [ "${{ inputs.plugin }}" = "auto" ]; then
+            python scripts/detect_plugins.py \
+              --files-from /tmp/changed.txt \
+              --github-output "$GITHUB_OUTPUT"
+          else
+            python scripts/detect_plugins.py \
+              --plugin "${{ inputs.plugin }}" \
+              --github-output "$GITHUB_OUTPUT"
+          fi
+      - name: Type check plugin
+        working-directory: plugins/${{ steps.detect.outputs.plugin_name }}
+        run: uv run mypy
+      - name: Build distribution
+        working-directory: plugins/${{ steps.detect.outputs.plugin_name }}
+        run: |
+          rm -rf dist
+          uv build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: plugins/${{ steps.detect.outputs.plugin_name }}/dist
+          print-hash: true

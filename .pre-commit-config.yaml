@@ -1,0 +1,4 @@
+# This repository now uses per-plugin pre-commit configs under plugins/<name>/.pre-commit-config.yaml.
+# The root config is intentionally empty so contributors can focus on a single plugin without
+# installing shared hooks.
+repos: []

@@ -1,0 +1,90 @@
+name: release
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  analyze:
+    if: ${{ !contains(github.event.head_commit.message, '[skip release]') }}
+    runs-on: ubuntu-latest
+    outputs:
+      plugin_name: ${{ steps.detect.outputs.plugin_name }}
+      plugin_count: ${{ steps.detect.outputs.plugin_count }}
+      plugin_path: ${{ steps.detect.outputs.plugin_path }}
+      package_name: ${{ steps.detect.outputs.package_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Determine changed files
+        run: |
+          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            git diff --name-only HEAD^ HEAD > /tmp/changed.txt
+          else
+            git ls-tree -r --name-only HEAD > /tmp/changed.txt
+          fi
+      - name: Detect plugin touched in push
+        id: detect
+        run: |
+          python scripts/detect_plugins.py \
+            --files-from /tmp/changed.txt \
+            --allow-empty \
+            --github-output "$GITHUB_OUTPUT"
+
+  release:
+    needs: analyze
+    if: needs.analyze.outputs.plugin_count != '0' && !contains(github.event.head_commit.message, '[skip release]')
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/run-lint
+      - name: Ensure plugin environment
+        run: ./scripts/sync_plugins.py "plugins/${{ needs.analyze.outputs.plugin_name }}"
+      - name: Type check plugin
+        working-directory: plugins/${{ needs.analyze.outputs.plugin_name }}
+        run: uv run mypy
+      - name: Determine bump type
+        id: bump_part
+        run: echo "part=patch" >> "$GITHUB_OUTPUT"
+      - name: Bump version
+        id: bump
+        run: |
+          uv run python scripts/bump_version.py \
+            --plugin "${{ needs.analyze.outputs.plugin_name }}" \
+            --part "${{ steps.bump_part.outputs.part }}" \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Run plugin tests
+        run: |
+          TARGET="plugins/${{ needs.analyze.outputs.plugin_name }}/tests"
+          if [ -d "$TARGET" ]; then
+            uv run --project "plugins/${{ needs.analyze.outputs.plugin_name }}" pytest "$TARGET"
+          else
+            echo "No tests for plugins/${{ needs.analyze.outputs.plugin_name }}"
+          fi
+      - name: Build plugin
+        working-directory: plugins/${{ needs.analyze.outputs.plugin_name }}
+        run: uv build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: plugins/${{ needs.analyze.outputs.plugin_name }}/dist
+          print-hash: true
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add "plugins/${{ needs.analyze.outputs.plugin_name }}/pyproject.toml"
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "chore(${{ needs.analyze.outputs.plugin_name }}): release v${{ steps.bump.outputs.new_version }} [skip release]"
+          git push origin HEAD
+      - name: Tag release
+        run: |
+          git tag "${{ needs.analyze.outputs.plugin_name }}-v${{ steps.bump.outputs.new_version }}"
+          git push origin "${{ needs.analyze.outputs.plugin_name }}-v${{ steps.bump.outputs.new_version }}"
