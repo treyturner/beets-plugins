@@ -36,7 +36,7 @@ jobs:
         id: detect
         run: |
           python scripts/detect_plugins.py \
-            --files-from "${{ steps.changed-files.outputs.all_changed_files_file }}" \
+            --files-from .github/outputs/all_changed_files.txt \
             --allow-empty \
             --allow-multiple \
             --default all \

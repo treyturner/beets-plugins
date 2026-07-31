@@ -108,7 +108,7 @@ def normalize_paths(files: Iterable[str]) -> list[str]:
 
 
 def read_files_from(path: Path | None) -> Sequence[str]:
-    if path is None or not path.exists():
+    if path is None or not path.is_file():
         return []
     content = path.read_text().splitlines()
     return tuple(content)
