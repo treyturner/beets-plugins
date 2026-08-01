@@ -77,16 +77,18 @@ jobs:
             exit 0
           fi
           rm -f coverage.head
+          coverage_parts=$(mktemp -d)
           last=""
           for plugin in $PLUGINS; do
             target="plugins/$plugin/tests"
             if [ -d "$target" ]; then
               echo "Running coverage for $plugin"
-              COVERAGE_FILE=coverage.head uv run --project "plugins/$plugin" coverage run --append -m pytest "$target" --cov="plugins/$plugin" --cov-report=term-missing
+              COVERAGE_FILE="$coverage_parts/coverage.head.$plugin" uv run --project "plugins/$plugin" pytest "$target" --cov="plugins/$plugin" --cov-report=term-missing
               last=$plugin
             fi
           done
           if [ -n "$last" ]; then
+            COVERAGE_FILE=coverage.head uv run --project "plugins/$last" coverage combine "$coverage_parts"
             COVERAGE_FILE=coverage.head uv run --project "plugins/$last" coverage xml -o coverage.head.xml
           else
             echo "No plugin tests found; creating empty coverage report"
@@ -114,16 +116,18 @@ jobs:
           fi
           echo "has_plugins=true" >> "$GITHUB_OUTPUT"
           rm -f coverage.base
+          coverage_parts=$(mktemp -d)
           last=""
           for plugin in $PLUGINS; do
             target="plugins/$plugin/tests"
             if [ -d "$target" ]; then
               echo "Running coverage for $plugin (base)"
-              COVERAGE_FILE=coverage.base uv run --project "plugins/$plugin" coverage run --append -m pytest "$target" --cov="plugins/$plugin" --cov-report=term-missing
+              COVERAGE_FILE="$coverage_parts/coverage.base.$plugin" uv run --project "plugins/$plugin" pytest "$target" --cov="plugins/$plugin" --cov-report=term-missing
               last=$plugin
             fi
           done
           if [ -n "$last" ]; then
+            COVERAGE_FILE=coverage.base uv run --project "plugins/$last" coverage combine "$coverage_parts"
             COVERAGE_FILE=coverage.base uv run --project "plugins/$last" coverage xml -o coverage.base.xml
           else
             echo "No plugin tests found; creating empty coverage report"
