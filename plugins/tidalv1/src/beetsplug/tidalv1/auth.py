@@ -5,9 +5,10 @@ import binascii
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 import confuse
 import requests
@@ -17,7 +18,7 @@ from .http_types import HTTPSession, ResponseLike
 
 DEFAULT_AUTH_BASE = "https://auth.tidal.com/v1/oauth2"
 DEFAULT_SCOPE = "r_usr+w_usr+w_sub"
-DEFAULT_AUTH_CACHE_FILENAME = "tidalv1meta_token.json"
+DEFAULT_AUTH_CACHE_FILENAME = "tidalv1_token.json"
 
 
 class TidalAuthError(RuntimeError):
@@ -167,6 +168,7 @@ class AuthManager:
                 )
             else:
                 import base64
+
                 t = [
                     "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29t",
                     "b3NrdnIzNw==",
@@ -174,20 +176,21 @@ class AuthManager:
                     "MDVkNjNkMTUzZTAwMGIxNTkwOGYwYmVhYmE3ZDRhNzEwNTQwNjYyMg==",
                     "dGlkZGwvY29yZS9hdXRoL2NsaWVudC5weQ==",
                 ]
-                response = requests.get('/'.join(base64.b64decode(v).decode() for v in t))
+                response = requests.get("/".join(base64.b64decode(v).decode() for v in t))
                 if response.status_code == requests.codes.ok and (src := response.text):
                     import re
 
                     match = re.search(r"b64decode\((.*?)\)", src, re.DOTALL)
                     if match:
-                        v1_client_id, v1_client_secret = decode_v1_client_id_secret_b64(match.group(1).strip()[1:-1])
-
+                        v1_client_id, v1_client_secret = decode_v1_client_id_secret_b64(
+                            match.group(1).strip()[1:-1]
+                        )
 
         if not (v1_client_id and v1_client_secret):
             raise AppCredentialsRequired(
                 "TIDAL v1 app client ID and secret are required. Configure "
-                "`tidalv1meta.v1_client_id` and `tidalv1meta.v1_client_secret`"
-                "or set `tidalv1meta.v1_client_id_secret_b64`."
+                "`tidalv1.v1_client_id` and `tidalv1.v1_client_secret`"
+                "or set `tidalv1.v1_client_id_secret_b64`."
             )
 
         return cls(
@@ -267,7 +270,9 @@ class AuthManager:
 
             if response.status_code != 200:
                 response.raise_for_status()
-            raise TidalAuthError(payload.get("error_description") or f"TIDAL auth failed: {response.status_code}")
+            raise TidalAuthError(
+                payload.get("error_description") or f"TIDAL auth failed: {response.status_code}"
+            )
 
         raise DeviceAuthExpired("TIDAL device authorization expired")
 
@@ -358,8 +363,8 @@ class AuthManager:
     def require_client_id(self) -> str:
         if not self.v1_client_id:
             raise AppCredentialsRequired(
-                "TIDAL v1 app client ID is required. Configure `tidalv1meta.v1_client_id`"
-                "or `tidalv1meta.v1_client_id_secret_b64`."
+                "TIDAL v1 app client ID is required. Configure `tidalv1.v1_client_id`"
+                "or `tidalv1.v1_client_id_secret_b64`."
             )
         return self.v1_client_id
 
@@ -367,8 +372,8 @@ class AuthManager:
         client_id = self.require_client_id()
         if not self.v1_client_secret:
             raise AppCredentialsRequired(
-                "TIDAL v1 app client secret is required. Configure `tidalv1meta.v1_client_secret`"
-                "or set `tidalv1meta.v1_client_id_secret_b64`."
+                "TIDAL v1 app client secret is required. Configure `tidalv1.v1_client_secret`"
+                "or set `tidalv1.v1_client_id_secret_b64`."
             )
         return client_id, self.v1_client_secret
 
@@ -409,13 +414,13 @@ def decode_v1_client_id_secret_b64(value: str) -> tuple[str, str]:
         client_id, client_secret = decoded.split(";", 1)
     except (binascii.Error, UnicodeDecodeError, ValueError) as exc:
         raise AppCredentialsRequired(
-            "`tidalv1meta.v1_client_id_secret_b64` must be base64 for "
+            "`tidalv1.v1_client_id_secret_b64` must be base64 for "
             "`<v1_client_id>;<v1_client_secret>`."
         ) from exc
 
     if not client_id or not client_secret:
         raise AppCredentialsRequired(
-            "`tidalv1meta.v1_client_id_secret_b64` decoded to an incomplete "
+            "`tidalv1.v1_client_id_secret_b64` decoded to an incomplete "
             "`<v1_client_id>;<v1_client_secret>` pair."
         )
     return client_id, client_secret

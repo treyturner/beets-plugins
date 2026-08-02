@@ -5,10 +5,11 @@ import json
 import pathlib
 
 import confuse
+from conftest import FakeResponse, FakeSession
 from pytest import MonkeyPatch
 
-from beetsplug.tidalv1meta import DEFAULT_CONFIG
-from beetsplug.tidalv1meta.auth import (
+from beetsplug.tidalv1 import DEFAULT_CONFIG
+from beetsplug.tidalv1.auth import (
     DEFAULT_AUTH_CACHE_FILENAME,
     AuthManager,
     DeviceCode,
@@ -16,8 +17,6 @@ from beetsplug.tidalv1meta.auth import (
     decode_v1_client_id_secret_b64,
     default_auth_cache_path,
 )
-
-from conftest import FakeResponse, FakeSession
 
 
 def test_refresh_token_is_saved_to_private_cache(tmp_path: pathlib.Path):
@@ -153,7 +152,7 @@ def test_from_config_resolves_relative_auth_cache_in_beets_app_dir(
     config = confuse.Configuration("beets", read=False)
     config.set(
         {
-            "tidalv1meta": {
+            "tidalv1": {
                 "v1_client_id": "client-id",
                 "v1_client_secret": "client-secret",
                 "auth_cache": "tokens/tidal.json",
@@ -161,7 +160,7 @@ def test_from_config_resolves_relative_auth_cache_in_beets_app_dir(
         }
     )
 
-    manager = AuthManager.from_config(config["tidalv1meta"])
+    manager = AuthManager.from_config(config["tidalv1"])
 
     assert manager.cache_path == beets_dir / "tokens" / "tidal.json"
 
@@ -174,7 +173,7 @@ def test_from_config_resolves_default_plugin_auth_cache_in_beets_app_dir(
     config = confuse.Configuration("beets", read=False)
     config.set(
         {
-            "tidalv1meta": {
+            "tidalv1": {
                 **DEFAULT_CONFIG,
                 "v1_client_id": "client-id",
                 "v1_client_secret": "client-secret",
@@ -182,7 +181,7 @@ def test_from_config_resolves_default_plugin_auth_cache_in_beets_app_dir(
         }
     )
 
-    manager = AuthManager.from_config(config["tidalv1meta"])
+    manager = AuthManager.from_config(config["tidalv1"])
 
     assert manager.cache_path == beets_dir / DEFAULT_AUTH_CACHE_FILENAME
 
