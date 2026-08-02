@@ -51,9 +51,23 @@ Repository-level tooling is only needed for shared scripts/workflows.
 - **Coverage** – on every PR, coverage is computed for both the base ref and the PR head and the build fails if coverage drops.
 - **Versioning** – optional manual workflow to bump a plugin's version outside the automated flow.
 - **Release** – runs on pushes to `main`, detects the touched plugin, bumps its version via `semver`, runs tests, builds, publishes to PyPI, and tags the release.
-- **Publish** – manual trusted-publisher release if you need to re-publish an existing artifact.
+- **Publish** – manually builds, publishes, and tags the selected plugin's committed version through PyPI Trusted Publishing.
 
 See `.github/workflows/` for exact behavior, including automatic plugin detection via `scripts/detect_plugins.py`.
+
+## Version policy
+
+Plugins are protected on the SemVer initial-development line (`0.x.y`) by default. The reviewed exemption registry is [`release-policy.toml`](release-policy.toml): a plugin may use `1.x` or later only when its directory name appears in `stable_plugins`. Shared CI validates the registry and every plugin version, and the build, release, and manual publish workflows validate the selected plugin again before producing or uploading a distribution.
+
+To promote a plugin to a stable API:
+
+1. Add its `plugins/<name>` directory name to `stable_plugins` in `release-policy.toml` through normal review and merge that policy change.
+2. Run the manual **Versioning** workflow for that plugin with a `major` increment. The policy-aware bump creates `1.0.0` and commits it with `[skip release]`, preventing the automatic release workflow from applying another patch increment.
+3. Run the manual **Publish** workflow for that plugin. It validates and builds the exact committed version, publishes it through PyPI Trusted Publishing, and creates the `<plugin>-vX.Y.Z` tag.
+
+After promotion, normal merges use the same automatic patch-release process without the `0.x.y` restriction. Removing a stable exemption while the plugin has a `1.x` or later version fails validation.
+
+Conventional Commit labels do not select a version increment in this repository. `feat`, `fix`, `!`, and `BREAKING CHANGE` have no special release effect: automatic releases always apply a patch increment. The `[skip release]` marker is the only commit-message control and suppresses the automatic release workflow.
 
 ## Contribution guidelines
 

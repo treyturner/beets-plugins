@@ -1,0 +1,6 @@
+schema_version = 1
+
+# Plugin directory names listed here are exempt from the 0.x.y guardrail.
+# Promote a plugin through review by adding its name, then use the manual
+# versioning and publish workflows to release and tag 1.0.0.
+stable_plugins = []

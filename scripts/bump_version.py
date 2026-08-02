@@ -11,6 +11,17 @@ from typing import Any
 
 from semver import VersionInfo
 
+if __package__:
+    from .version_policy import (
+        load_release_policy,
+        validate_plugin_version,
+    )
+else:  # pragma: no cover - exercised by subprocess tests
+    from version_policy import (  # type: ignore[import-not-found,no-redef]
+        load_release_policy,
+        validate_plugin_version,
+    )
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover
@@ -33,6 +44,11 @@ def parse_args() -> argparse.Namespace:
         choices=("patch", "minor", "major"),
         default="patch",
         help="Which portion of the version to increment",
+    )
+    parser.add_argument(
+        "--policy-file",
+        default="release-policy.toml",
+        help="Release policy path relative to the workspace root",
     )
     parser.add_argument(
         "--version",
@@ -59,16 +75,24 @@ def load_version(pyproject_path: Path) -> str:
 def bump_version(version: str, part: str) -> str:
     parsed = VersionInfo.parse(version)
     if part == "major":
-        return str(parsed.bump_major())
-    if part == "minor":
-        return str(parsed.bump_minor())
-    return str(parsed.bump_patch())
+        bumped = parsed.bump_major()
+    elif part == "minor":
+        bumped = parsed.bump_minor()
+    elif part == "patch":
+        bumped = parsed.bump_patch()
+    else:
+        raise ValueError(f"Unsupported version component '{part}'")
+    return str(bumped)
 
 
 def write_version(pyproject_path: Path, new_version: str) -> None:
     pattern = re.compile(r'(?m)^(version\s*=\s*")(?P<value>[^\"]+)(")')
     content = pyproject_path.read_text(encoding="utf-8")
-    updated, count = pattern.subn(rf"\1{new_version}\3", content, count=1)
+    updated, count = pattern.subn(
+        rf"\g<1>{new_version}\g<3>",
+        content,
+        count=1,
+    )
     if count != 1:
         raise SystemExit(f"Failed to update version line inside {pyproject_path}")
     pyproject_path.write_text(updated, encoding="utf-8")
@@ -91,13 +115,17 @@ def main() -> None:
         raise SystemExit(f"Plugin pyproject not found: {pyproject}")
 
     current_version = load_version(pyproject)
-    if args.version:
-        try:
-            new_version = str(VersionInfo.parse(args.version))
-        except ValueError as exc:  # pragma: no cover - invalid user input
-            raise SystemExit(f"Invalid version '{args.version}': {exc}") from exc
-    else:
-        new_version = bump_version(current_version, args.part)
+    try:
+        policy = load_release_policy(args.workspace_root / args.policy_file)
+        if args.version:
+            new_version = str(
+                validate_plugin_version(args.plugin, args.version, policy)
+            )
+        else:
+            new_version = bump_version(current_version, args.part)
+            validate_plugin_version(args.plugin, new_version, policy)
+    except ValueError as exc:
+        raise SystemExit(f"Unable to bump {args.plugin}: {exc}") from exc
 
     if current_version == new_version:
         print(f"Version unchanged: {current_version}")

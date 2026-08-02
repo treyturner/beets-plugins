@@ -13,7 +13,7 @@ on:
         default: "origin/main"
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -42,6 +42,12 @@ jobs:
               --plugin "${{ inputs.plugin }}" \
               --github-output "$GITHUB_OUTPUT"
           fi
+      - name: Validate publish version
+        id: version
+        run: >-
+          uv run python scripts/validate_versions.py
+          --plugin "${{ steps.detect.outputs.plugin_name }}"
+          --github-output "$GITHUB_OUTPUT"
       - name: Type check plugin
         working-directory: plugins/${{ steps.detect.outputs.plugin_name }}
         run: uv run mypy
@@ -55,3 +61,14 @@ jobs:
         with:
           packages-dir: plugins/${{ steps.detect.outputs.plugin_name }}/dist
           print-hash: true
+      - name: Tag published version
+        run: |
+          TAG="${{ steps.detect.outputs.plugin_name }}-v${{ steps.version.outputs.version }}"
+          if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag already exists: $TAG"
+            exit 0
+          fi
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
