@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import pathlib
+
 import pytest
-
-from beetsplug.tidalv1meta.auth import AuthManager, AuthRequired
-from beetsplug.tidalv1meta.client import TidalClient, cover_url, normalize, similarity
-
 from conftest import FakeResponse, FakeSession
+
+from beetsplug.tidalv1.auth import AuthManager, AuthRequired
+from beetsplug.tidalv1.client import TidalClient, cover_url, normalize, similarity
 
 
 def test_cover_url_formats_uuid_and_caps_size():
@@ -88,7 +88,9 @@ def test_lyrics_falls_back_to_plain_text(search_payload):
     assert not result.synced
 
 
-def test_lyrics_requires_user_scoped_token_after_catalog_search(search_payload, tmp_path: pathlib.Path):
+def test_lyrics_requires_user_scoped_token_after_catalog_search(
+    search_payload, tmp_path: pathlib.Path
+):
     auth_session = FakeSession(
         post=[
             FakeResponse(
@@ -112,7 +114,9 @@ def test_lyrics_requires_user_scoped_token_after_catalog_search(search_payload, 
     )
 
     with pytest.raises(AuthRequired):
-        client.lyrics_for("Daft Punk", "Harder Better Faster Stronger", album="Discovery", length=224)
+        client.lyrics_for(
+            "Daft Punk", "Harder Better Faster Stronger", album="Discovery", length=224
+        )
 
 
 def test_find_album_returns_cover_match(album_search_payload):

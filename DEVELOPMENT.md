@@ -1,6 +1,10 @@
 # Beets Plugins Workspace
 
-This repository is a uv-managed Python monorepo for custom [Beets](https://beets.io/) plugins. Each plugin is independently versioned and packaged from its own directory under `plugins/`.
+This repository is a uv-managed Python monorepo for custom [Beets](https://beets.io/) plugins. It currently contains:
+
+- **tidalv1** – TIDAL v1 sources for the built-in lyrics and fetchart plugins.
+
+`tidalv1` supports Python 3.10–3.14. Each plugin is independently versioned and packaged from its own directory under `plugins/`.
 
 ## Tooling
 
@@ -17,6 +21,11 @@ This repository is a uv-managed Python monorepo for custom [Beets](https://beets
 uv sync --all-groups                  # install repository tooling
 pre-commit install                    # repository-wide hooks
 ./scripts/sync_plugins.py             # sync every available plugin
+
+cd plugins/tidalv1
+uv sync                               # install plugin deps + dev tools
+pre-commit install
+uv run pytest
 ```
 
 Optionally sync every plugin from the repo root with `./scripts/sync_plugins.py`.

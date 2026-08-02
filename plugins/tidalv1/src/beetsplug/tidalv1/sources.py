@@ -5,19 +5,20 @@ from typing import Any, cast
 import requests
 from beets import config as beets_config
 from beets.util.lyrics import Lyrics
-from beetsplug import fetchart as fetchart_mod
-from beetsplug import lyrics as lyrics_mod
 from beetsplug.fetchart import MetadataMatch, RemoteArtSource
 from beetsplug.lyrics import Backend
+
+from beetsplug import fetchart as fetchart_mod
+from beetsplug import lyrics as lyrics_mod
 
 from .auth import AuthManager, TidalAuthError
 from .client import DEFAULT_API_BASE, TidalAPIError, TidalClient, cover_url
 
 
-class TidalV1Meta(Backend):  # type: ignore[misc]
+class TidalV1(Backend):
     def fetch(self, artist: str, title: str, album: str, length: int) -> Lyrics | None:
         try:
-            client = client_from_config(beets_config["tidalv1meta"])
+            client = client_from_config(beets_config["tidalv1"])
             result = client.lyrics_for(
                 artist,
                 title,
@@ -35,14 +36,14 @@ class TidalV1Meta(Backend):  # type: ignore[misc]
         return Lyrics(result.text, self.__class__.name, result.url)
 
 
-class TidalArtSource(RemoteArtSource):  # type: ignore[misc]
+class TidalArtSource(RemoteArtSource):
     NAME = "TIDAL"
-    ID = "tidalv1meta"
+    ID = "tidalv1"
     VALID_MATCHING_CRITERIA = ["default"]
 
     def get(self, album: Any, plugin: Any, paths: Any) -> Any:
         try:
-            client = client_from_config(beets_config["tidalv1meta"])
+            client = client_from_config(beets_config["tidalv1"])
             match = client.find_album(
                 album.albumartist,
                 album.album,
@@ -76,12 +77,12 @@ def client_from_config(config: Any) -> TidalClient:
 
 
 def register_sources() -> None:
-    cast(Any, lyrics_mod.BACKEND_BY_NAME).setdefault("tidalv1meta", TidalV1Meta)
+    cast(Any, lyrics_mod.BACKEND_BY_NAME).setdefault("tidalv1", TidalV1)
     fetchart_mod.ART_SOURCES.add(TidalArtSource)
 
 
 def _config_value(key: str, default: Any, value_type: Any = None) -> Any:
-    view = cast(Any, beets_config)["tidalv1meta"][key]
+    view = cast(Any, beets_config)["tidalv1"][key]
     try:
         value: Any = view.get(value_type) if value_type else view.get()
     except Exception:

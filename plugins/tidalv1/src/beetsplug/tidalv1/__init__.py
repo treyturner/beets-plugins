@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 import time
-from typing import Any, cast
 import webbrowser
+from importlib.metadata import PackageNotFoundError, version
+from typing import Any, cast
 
 from beets import ui
 from beets.plugins import BeetsPlugin
 
 from .auth import (
     DEFAULT_AUTH_BASE,
-    AuthManager,
     DEFAULT_AUTH_CACHE_FILENAME,
+    AuthManager,
 )
 from .client import DEFAULT_API_BASE
 from .sources import register_sources
 
-__version__ = "0.1.0"
+try:
+    __version__ = version("beets-tidalv1")
+except PackageNotFoundError:  # pragma: no cover - source tree without installation
+    __version__ = "0.1.0"
 
 DEFAULT_CONFIG: dict[str, str | int | float | bool | None] = {
     "api_base": DEFAULT_API_BASE,
@@ -38,7 +42,7 @@ DEFAULT_CONFIG: dict[str, str | int | float | bool | None] = {
 register_sources()
 
 
-class TidalV1MetaPlugin(BeetsPlugin):
+class TidalV1Plugin(BeetsPlugin):
     def __init__(self) -> None:
         super().__init__()
         self.config.add(DEFAULT_CONFIG)
@@ -53,7 +57,7 @@ class TidalV1MetaPlugin(BeetsPlugin):
         register_sources()
 
     def commands(self) -> list[Any]:
-        cmd = cast(Any, ui.Subcommand)("tidalv1-auth", help="authorize TIDAL for tidalv1meta")
+        cmd = cast(Any, ui.Subcommand)("tidalv1-auth", help="authorize TIDAL for tidalv1")
         cmd.parser.add_option(
             "--open",
             action="store_true",
