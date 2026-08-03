@@ -4,7 +4,9 @@ import base64
 import binascii
 import json
 import os
+import re
 import tempfile
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -20,6 +22,9 @@ from .http_types import HTTPSession, ResponseLike
 DEFAULT_AUTH_BASE = "https://auth.tidal.com/v1/oauth2"
 DEFAULT_SCOPE = "r_usr+w_usr+w_sub"
 DEFAULT_AUTH_CACHE_FILENAME = "tidalv1_token.json"
+
+_discovered_app_credentials: tuple[str, str] | None = None
+_discovered_app_credentials_lock = threading.Lock()
 
 
 class TidalAuthError(RuntimeError):
@@ -169,35 +174,12 @@ class AuthManager:
                     v1_client_id_secret_b64
                 )
             else:
-                import base64
-
-                t = [
-                    "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29t",
-                    "b3NrdnIzNw==",
-                    "dGlkZGw=",
-                    "MDVkNjNkMTUzZTAwMGIxNTkwOGYwYmVhYmE3ZDRhNzEwNTQwNjYyMg==",
-                    "dGlkZGwvY29yZS9hdXRoL2NsaWVudC5weQ==",
-                ]
                 credential_session = session or cast(HTTPSession, requests.Session())
-                try:
-                    response = credential_session.get(
-                        "/".join(base64.b64decode(v).decode() for v in t),
-                        timeout=request_timeout,
-                    )
-                except requests.RequestException:
-                    response = None
-                if (
-                    response is not None
-                    and response.status_code == requests.codes.ok
-                    and (src := response.text)
-                ):
-                    import re
-
-                    match = re.search(r"b64decode\((.*?)\)", src, re.DOTALL)
-                    if match:
-                        v1_client_id, v1_client_secret = decode_v1_client_id_secret_b64(
-                            match.group(1).strip()[1:-1]
-                        )
+                discovered_credentials = _discover_app_credentials(
+                    credential_session, request_timeout
+                )
+                if discovered_credentials:
+                    v1_client_id, v1_client_secret = discovered_credentials
 
         if not (v1_client_id and v1_client_secret):
             raise AppCredentialsRequired(
@@ -459,6 +441,44 @@ def decode_v1_client_id_secret_b64(value: str) -> tuple[str, str]:
             "`<v1_client_id>;<v1_client_secret>` pair."
         )
     return client_id, client_secret
+
+
+def _discover_app_credentials(
+    session: HTTPSession, request_timeout: float
+) -> tuple[str, str] | None:
+    global _discovered_app_credentials
+
+    if _discovered_app_credentials is not None:
+        return _discovered_app_credentials
+
+    with _discovered_app_credentials_lock:
+        if _discovered_app_credentials is not None:
+            return _discovered_app_credentials
+
+        parts = [
+            "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29t",
+            "b3NrdnIzNw==",
+            "dGlkZGw=",
+            "MDVkNjNkMTUzZTAwMGIxNTkwOGYwYmVhYmE3ZDRhNzEwNTQwNjYyMg==",
+            "dGlkZGwvY29yZS9hdXRoL2NsaWVudC5weQ==",
+        ]
+        try:
+            response = session.get(
+                "/".join(base64.b64decode(value).decode() for value in parts),
+                timeout=request_timeout,
+            )
+        except requests.RequestException:
+            return None
+
+        if response.status_code != requests.codes.ok or not response.text:
+            return None
+
+        match = re.search(r"b64decode\((.*?)\)", response.text, re.DOTALL)
+        if not match:
+            return None
+
+        _discovered_app_credentials = decode_v1_client_id_secret_b64(match.group(1).strip()[1:-1])
+        return _discovered_app_credentials
 
 
 def response_json_object(response: ResponseLike) -> dict[str, Any]:
