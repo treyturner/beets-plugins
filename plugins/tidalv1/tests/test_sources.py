@@ -9,6 +9,7 @@ from beets.util.lyrics import Lyrics
 
 import beetsplug.tidalv1 as plugin
 from beetsplug import fetchart, lyrics
+from beetsplug.tidalv1.auth import DeviceCode, TokenSet
 from beetsplug.tidalv1.client import AlbumMatch, LyricsResult, TrackMatch
 from beetsplug.tidalv1.sources import TidalArtSource, TidalV1
 
@@ -17,6 +18,37 @@ def test_import_registers_lyrics_backend_and_fetchart_source():
     assert lyrics.BACKEND_BY_NAME["tidalv1"] is TidalV1
     assert TidalArtSource in fetchart.ART_SOURCES
     assert plugin.__version__
+
+
+def test_auth_command_prints_authorization_url_in_one_message(monkeypatch):
+    device = DeviceCode(
+        device_code="device",
+        user_code="ABCD",
+        verification_uri="https://login.tidal.com/device",
+        verification_uri_complete="https://login.tidal.com/device?code=ABCD",
+        expires_in=30,
+    )
+    token = TokenSet(access_token="user-token")
+    saved_tokens: list[TokenSet] = []
+    manager = SimpleNamespace(
+        cache_path="/tmp/tidalv1-token.json",
+        start_device_authorization=lambda: device,
+        poll_device_authorization=lambda received_device, sleep: token,
+        save_token=saved_tokens.append,
+    )
+    messages: list[str] = []
+    monkeypatch.setattr(
+        plugin.AuthManager,
+        "from_config",
+        classmethod(lambda cls, config: manager),
+    )
+    monkeypatch.setattr(plugin.ui, "print_", messages.append)
+
+    command = plugin.TidalV1Plugin().commands()[0]
+    command.func(None, SimpleNamespace(open=False), [])
+
+    assert "Open this TIDAL authorization URL: " + device.verification_uri_complete in messages
+    assert saved_tokens == [token]
 
 
 def test_tidal_fetchart_source_accepts_plain_source_config():
