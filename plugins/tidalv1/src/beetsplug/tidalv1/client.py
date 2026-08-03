@@ -336,7 +336,10 @@ def normalize(value: str | None) -> str:
     value = unicodedata.normalize("NFKC", value or "").casefold()
     value = re.sub(r"\([^)]*\)", " ", value)
     value = re.sub(r"\b(feat|featuring|ft)\b.*", " ", value)
-    value = "".join(character if character.isalnum() else " " for character in value)
+    value = "".join(
+        character if character.isalnum() or unicodedata.category(character).startswith("M") else " "
+        for character in value
+    )
     return " ".join(value.split())
 
 

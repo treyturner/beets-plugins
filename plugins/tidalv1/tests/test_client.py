@@ -27,6 +27,7 @@ def test_normalize_removes_features_and_punctuation():
         ("宇多田ヒカル", "宇多田ヒカル"),
         ("Би-2", "би 2"),
         ("안녕 2026", "안녕 2026"),
+        ("किताब", "किताब"),
     ],
 )
 def test_normalize_preserves_unicode_letters_and_digits(value: str, expected: str):
