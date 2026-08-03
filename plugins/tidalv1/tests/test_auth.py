@@ -131,6 +131,21 @@ def test_token_cache_atomically_replaces_existing_file_with_private_permissions(
     assert json.loads(cache_path.read_text())["refresh_token"] == "private-refresh"
 
 
+@pytest.mark.parametrize(
+    "contents",
+    [
+        "not JSON",
+        "[]",
+        '{"access_token": "cached", "expires_at": "not-an-integer"}',
+    ],
+)
+def test_invalid_token_cache_is_ignored(contents: str, tmp_path: pathlib.Path):
+    cache_path = tmp_path / "auth.json"
+    cache_path.write_text(contents)
+
+    assert AuthManager(cache_path=cache_path).load_cached_token() is None
+
+
 def test_client_credentials_token_is_not_accepted_for_user_scope(tmp_path: pathlib.Path):
     session = FakeSession(
         post=[
