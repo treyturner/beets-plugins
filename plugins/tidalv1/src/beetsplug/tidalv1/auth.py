@@ -387,9 +387,9 @@ class AuthManager:
     def _best_refresh_token(self) -> str | None:
         cached = self.load_cached_token()
         return (
-            self._configured_refresh_token
+            (cached.refresh_token if cached else None)
+            or self._configured_refresh_token
             or (self._configured_token.refresh_token if self._configured_token else None)
-            or (cached.refresh_token if cached else None)
         )
 
     def require_client_id(self) -> str:
