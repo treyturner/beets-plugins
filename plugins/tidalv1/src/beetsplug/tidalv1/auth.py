@@ -152,6 +152,7 @@ class AuthManager:
         *,
         session: HTTPSession | None = None,
     ) -> AuthManager:
+        request_timeout = _config_value(config, "request_timeout", 15.0, float)
         v1_client_id = os.environ.get("TIDAL_V1_CLIENT_ID") or _config_value(
             config, "v1_client_id", None, str
         )
@@ -176,8 +177,19 @@ class AuthManager:
                     "MDVkNjNkMTUzZTAwMGIxNTkwOGYwYmVhYmE3ZDRhNzEwNTQwNjYyMg==",
                     "dGlkZGwvY29yZS9hdXRoL2NsaWVudC5weQ==",
                 ]
-                response = requests.get("/".join(base64.b64decode(v).decode() for v in t))
-                if response.status_code == requests.codes.ok and (src := response.text):
+                credential_session = session or cast(HTTPSession, requests.Session())
+                try:
+                    response = credential_session.get(
+                        "/".join(base64.b64decode(v).decode() for v in t),
+                        timeout=request_timeout,
+                    )
+                except requests.RequestException:
+                    response = None
+                if (
+                    response is not None
+                    and response.status_code == requests.codes.ok
+                    and (src := response.text)
+                ):
                     import re
 
                     match = re.search(r"b64decode\((.*?)\)", src, re.DOTALL)
@@ -205,7 +217,7 @@ class AuthManager:
             country_code=os.environ.get("TIDAL_COUNTRY_CODE")
             or _config_value(config, "country_code", "US", str),
             cache_path=_config_filename(config, "auth_cache"),
-            request_timeout=_config_value(config, "request_timeout", 15.0, float),
+            request_timeout=request_timeout,
             session=session,
         )
 
