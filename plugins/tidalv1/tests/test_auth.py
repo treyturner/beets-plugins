@@ -5,12 +5,15 @@ import json
 import pathlib
 
 import confuse
+import pytest
+import requests
 from conftest import FakeResponse, FakeSession
 from pytest import MonkeyPatch
 
 from beetsplug.tidalv1 import DEFAULT_CONFIG
 from beetsplug.tidalv1.auth import (
     DEFAULT_AUTH_CACHE_FILENAME,
+    AppCredentialsRequired,
     AuthManager,
     DeviceCode,
     TokenSet,
@@ -203,3 +206,43 @@ def test_from_config_falls_back_to_base64_when_direct_pair_is_incomplete(monkeyp
     manager = AuthManager.from_config(None)
 
     assert manager.require_client_credentials() == ("fallback-id", "fallback-secret")
+
+
+def test_from_config_applies_timeout_to_best_effort_credential_lookup(
+    monkeypatch: MonkeyPatch,
+):
+    monkeypatch.delenv("TIDAL_V1_CLIENT_ID", raising=False)
+    monkeypatch.delenv("TIDAL_V1_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("TIDAL_V1_CLIENT_ID_SECRET_B64", raising=False)
+    encoded_pair = base64.b64encode(b"discovered-id;discovered-secret").decode()
+    session = FakeSession(get=[FakeResponse(text=f'b64decode("{encoded_pair}")')])
+    config = confuse.Configuration("beets", read=False)
+    config.set({"tidalv1": {"request_timeout": 2.5}})
+
+    manager = AuthManager.from_config(config["tidalv1"], session=session)
+
+    assert manager.require_client_credentials() == ("discovered-id", "discovered-secret")
+    assert session.get_calls[0]["timeout"] == 2.5
+
+
+def test_from_config_handles_best_effort_credential_lookup_network_failure(
+    monkeypatch: MonkeyPatch,
+):
+    monkeypatch.delenv("TIDAL_V1_CLIENT_ID", raising=False)
+    monkeypatch.delenv("TIDAL_V1_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("TIDAL_V1_CLIENT_ID_SECRET_B64", raising=False)
+    session = FakeSession()
+    get_calls: list[dict[str, object]] = []
+
+    def failing_get(url: str, **kwargs: object) -> FakeResponse:
+        get_calls.append({"url": url, **kwargs})
+        raise requests.Timeout("credential lookup timed out")
+
+    monkeypatch.setattr(session, "get", failing_get)
+    config = confuse.Configuration("beets", read=False)
+    config.set({"tidalv1": {"request_timeout": 1.25}})
+
+    with pytest.raises(AppCredentialsRequired):
+        AuthManager.from_config(config["tidalv1"], session=session)
+
+    assert get_calls[0]["timeout"] == 1.25
