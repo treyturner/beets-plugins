@@ -210,10 +210,20 @@ def test_catalog_token_falls_back_to_client_credentials_after_rejected_refresh(
     ]
 
 
-def test_device_authorization_polls_until_success(tmp_path: pathlib.Path):
+@pytest.mark.parametrize(
+    "pending_payload",
+    [
+        {"error": "authorization_pending"},
+        {"sub_status": 1002},
+    ],
+    ids=["oauth-error", "tidal-sub-status"],
+)
+def test_device_authorization_polls_until_success(
+    pending_payload: dict[str, object], tmp_path: pathlib.Path
+):
     session = FakeSession(
         post=[
-            FakeResponse(status_code=400, payload={"error": "authorization_pending"}),
+            FakeResponse(status_code=400, payload=pending_payload),
             FakeResponse(
                 payload={
                     "access_token": "user-token",
