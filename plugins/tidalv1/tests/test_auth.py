@@ -57,6 +57,47 @@ def test_refresh_token_is_saved_to_private_cache(tmp_path: pathlib.Path):
     assert oct((tmp_path / "auth.json").stat().st_mode & 0o777) == "0o600"
 
 
+def test_cached_rotated_refresh_token_takes_precedence_over_configured_token(
+    tmp_path: pathlib.Path,
+):
+    cache_path = tmp_path / "auth.json"
+    cache_path.write_text(
+        json.dumps(
+            TokenSet(
+                access_token="expired-access",
+                refresh_token="rotated-refresh",
+                expires_at=1,
+                scope="r_usr",
+            ).to_json()
+        )
+    )
+    session = FakeSession(
+        post=[
+            FakeResponse(
+                payload={
+                    "access_token": "refreshed-access",
+                    "refresh_token": "next-refresh",
+                    "token_type": "Bearer",
+                    "expires_in": 3600,
+                    "scope": "r_usr",
+                }
+            )
+        ]
+    )
+    manager = AuthManager(
+        v1_client_id="client-id",
+        v1_client_secret="client-secret",
+        refresh_token="original-configured-refresh",
+        cache_path=cache_path,
+        session=session,
+    )
+
+    token = manager.get_token(require_user=True)
+
+    assert token.access_token == "refreshed-access"
+    assert session.post_calls[0]["data"]["refresh_token"] == "rotated-refresh"
+
+
 def test_token_cache_atomically_replaces_existing_file_with_private_permissions(
     monkeypatch: MonkeyPatch,
     tmp_path: pathlib.Path,
