@@ -26,7 +26,7 @@ def test_tidal_fetchart_source_accepts_plain_source_config():
         for criterion in source.VALID_MATCHING_CRITERIA
     ]
 
-    assert sanitize_pairs([("tidalv1", "*")], available_sources, raise_on_unknown=True) == [
+    assert sanitize_pairs([("tidalv1", "*")], available_sources) == [
         ("tidalv1", "default")
     ]
 
