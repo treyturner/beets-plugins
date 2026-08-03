@@ -109,6 +109,43 @@ def test_client_credentials_token_is_not_accepted_for_user_scope(tmp_path: pathl
     assert not token.has_scope("r_usr")
 
 
+def test_catalog_token_falls_back_to_client_credentials_after_rejected_refresh(
+    tmp_path: pathlib.Path,
+):
+    class RejectedRefreshResponse(FakeResponse):
+        def raise_for_status(self) -> None:
+            raise requests.HTTPError("refresh token rejected")
+
+    session = FakeSession(
+        post=[
+            RejectedRefreshResponse(status_code=401),
+            FakeResponse(
+                payload={
+                    "access_token": "catalog-token",
+                    "token_type": "Bearer",
+                    "expires_in": 3600,
+                    "scope": "",
+                }
+            ),
+        ]
+    )
+    manager = AuthManager(
+        v1_client_id="client-id",
+        v1_client_secret="client-secret",
+        refresh_token="revoked-refresh",
+        cache_path=tmp_path / "auth.json",
+        session=session,
+    )
+
+    token = manager.get_token(require_user=False)
+
+    assert token.access_token == "catalog-token"
+    assert [call["data"]["grant_type"] for call in session.post_calls] == [
+        "refresh_token",
+        "client_credentials",
+    ]
+
+
 def test_device_authorization_polls_until_success(tmp_path: pathlib.Path):
     session = FakeSession(
         post=[

@@ -296,9 +296,14 @@ class AuthManager:
 
         refresh_token = self._best_refresh_token()
         if refresh_token:
-            refreshed = self.refresh_token(refresh_token)
-            if not require_user or refreshed.has_scope("r_usr"):
-                return refreshed
+            try:
+                refreshed = self.refresh_token(refresh_token)
+            except requests.RequestException:
+                if require_user:
+                    raise
+            else:
+                if not require_user or refreshed.has_scope("r_usr"):
+                    return refreshed
 
         if require_user:
             raise AuthRequired(
