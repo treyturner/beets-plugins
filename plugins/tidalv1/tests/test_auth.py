@@ -17,6 +17,7 @@ from beetsplug.tidalv1.auth import (
     DEFAULT_AUTH_CACHE_FILENAME,
     AppCredentialsRequired,
     AuthManager,
+    AuthRequired,
     DeviceCode,
     TokenSet,
     decode_v1_client_id_secret_b64,
@@ -132,7 +133,6 @@ def test_client_credentials_token_is_not_accepted_for_user_scope(tmp_path: pathl
                     "access_token": "catalog-token",
                     "token_type": "Bearer",
                     "expires_in": 3600,
-                    "scope": "",
                 }
             )
         ]
@@ -148,6 +148,8 @@ def test_client_credentials_token_is_not_accepted_for_user_scope(tmp_path: pathl
 
     assert token.access_token == "catalog-token"
     assert not token.has_scope("r_usr")
+    with pytest.raises(AuthRequired):
+        manager.get_token(require_user=True)
 
 
 def test_catalog_token_falls_back_to_client_credentials_after_rejected_refresh(
