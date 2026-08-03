@@ -342,6 +342,9 @@ class AuthManager:
         )
         response.raise_for_status()
         token = TokenSet.from_oauth_payload(response_json_object(response))
+        # A client-credentials grant is never user-scoped, even when TIDAL
+        # omits the optional scope field from its response.
+        token.scope = ""
         self._memory_token = token
         return token
 
