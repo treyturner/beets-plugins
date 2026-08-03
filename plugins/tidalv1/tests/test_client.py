@@ -21,6 +21,19 @@ def test_normalize_removes_features_and_punctuation():
     assert similarity("Harder Better Faster Stronger", "Harder, Better, Faster, Stronger") > 0.9
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("宇多田ヒカル", "宇多田ヒカル"),
+        ("Би-2", "би 2"),
+        ("안녕 2026", "안녕 2026"),
+    ],
+)
+def test_normalize_preserves_unicode_letters_and_digits(value: str, expected: str):
+    assert normalize(value) == expected
+    assert similarity(value, value) == 1.0
+
+
 def test_find_track_selects_best_match(search_payload):
     client = TidalClient(
         AuthManager(access_token="token"),

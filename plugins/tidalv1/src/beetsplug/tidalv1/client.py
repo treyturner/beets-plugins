@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Any, cast
@@ -328,10 +329,10 @@ def duration_similarity(left: float | None, right: float | None) -> float:
 
 
 def normalize(value: str | None) -> str:
-    value = (value or "").casefold()
+    value = unicodedata.normalize("NFKC", value or "").casefold()
     value = re.sub(r"\([^)]*\)", " ", value)
     value = re.sub(r"\b(feat|featuring|ft)\b.*", " ", value)
-    value = re.sub(r"[^a-z0-9]+", " ", value)
+    value = "".join(character if character.isalnum() else " " for character in value)
     return " ".join(value.split())
 
 
