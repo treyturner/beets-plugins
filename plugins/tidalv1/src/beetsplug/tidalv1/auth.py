@@ -251,7 +251,7 @@ class AuthManager:
                 return token
 
             error = payload.get("error")
-            if error == "authorization_pending":
+            if error == "authorization_pending" or payload.get("sub_status") in (1002, "1002"):
                 sleep(interval)
                 continue
             if error == "slow_down":
