@@ -26,9 +26,7 @@ def test_tidal_fetchart_source_accepts_plain_source_config():
         for criterion in source.VALID_MATCHING_CRITERIA
     ]
 
-    assert sanitize_pairs([("tidalv1", "*")], available_sources) == [
-        ("tidalv1", "default")
-    ]
+    assert sanitize_pairs([("tidalv1", "*")], available_sources) == [("tidalv1", "default")]
 
 
 def test_tidal_backend_returns_beets_lyrics(monkeypatch):
@@ -69,6 +67,10 @@ def test_tidal_art_source_yields_candidate(monkeypatch):
     )
     fake_client = SimpleNamespace(find_album=lambda *args, **kwargs: album_match)
     monkeypatch.setattr("beetsplug.tidalv1.sources.client_from_config", lambda config: fake_client)
+    monkeypatch.setattr(
+        "beetsplug.tidalv1.sources._config_value",
+        lambda key, default, value_type=None: 2000 if key == "art_size" else default,
+    )
 
     source = TidalArtSource(cast(Any, logging.getLogger("test")), config=cast(Any, {}))
     album = SimpleNamespace(albumartist="Daft Punk", album="Discovery")
@@ -76,4 +78,5 @@ def test_tidal_art_source_yields_candidate(monkeypatch):
 
     assert len(candidates) == 1
     assert candidates[0].url.endswith("/1280x1280.jpg")
+    assert candidates[0].size == (1280, 1280)
     assert candidates[0].source_name == "tidalv1"

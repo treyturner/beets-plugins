@@ -208,9 +208,13 @@ class TidalClient:
 
 
 def cover_url(cover_id: str, size: int = 1280) -> str:
-    safe_size = min(max(int(size), 80), 1280)
+    safe_size = clamp_art_size(size)
     cover_path = cover_id.replace("-", "/")
     return f"https://resources.tidal.com/images/{cover_path}/{safe_size}x{safe_size}.jpg"
+
+
+def clamp_art_size(size: int) -> int:
+    return min(max(int(size), 80), 1280)
 
 
 def _items(payload: dict[str, Any], key: str) -> list[dict[str, Any]]:
