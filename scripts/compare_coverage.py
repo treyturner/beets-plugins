@@ -98,25 +98,34 @@ def main() -> None:
     baseline_plugins = {
         name for filename in base_files if (name := plugin_name(filename)) is not None
     }
-    base_counts = combine_counts(base_files, baseline_plugins or None)
-    comparable_head_counts = combine_counts(head_files, baseline_plugins or None)
+    head_plugins = {
+        name for filename in head_files if (name := plugin_name(filename)) is not None
+    }
+    comparable_plugins = baseline_plugins & head_plugins
+    if baseline_plugins and not comparable_plugins:
+        raise SystemExit("Head report has no coverage data comparable to the baseline")
+
+    plugin_filter = comparable_plugins if baseline_plugins else None
+    base_counts = combine_counts(base_files, plugin_filter)
+    comparable_head_counts = combine_counts(head_files, plugin_filter)
     if comparable_head_counts.valid == 0:
         raise SystemExit("Head report has no coverage data comparable to the baseline")
 
     head_rate = comparable_head_counts.rate
     base_rate = base_counts.rate
     if baseline_plugins:
-        new_plugins = {
-            name
-            for filename in head_files
-            if (name := plugin_name(filename)) is not None
-            and name not in baseline_plugins
-        }
+        new_plugins = head_plugins - baseline_plugins
+        removed_plugins = baseline_plugins - head_plugins
         print(f"Comparable head coverage: {head_rate:.4f}")
         if new_plugins:
             print(
                 "New plugins excluded from baseline comparison: "
                 + ", ".join(sorted(new_plugins))
+            )
+        if removed_plugins:
+            print(
+                "Removed plugins excluded from baseline comparison: "
+                + ", ".join(sorted(removed_plugins))
             )
     print(f"Baseline coverage: {base_rate:.4f}")
 
