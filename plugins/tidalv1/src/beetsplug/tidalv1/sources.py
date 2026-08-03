@@ -12,7 +12,7 @@ from beetsplug import fetchart as fetchart_mod
 from beetsplug import lyrics as lyrics_mod
 
 from .auth import AuthManager, TidalAuthError
-from .client import DEFAULT_API_BASE, TidalAPIError, TidalClient, cover_url
+from .client import DEFAULT_API_BASE, TidalAPIError, TidalClient, clamp_art_size, cover_url
 
 
 class TidalV1(Backend):
@@ -56,7 +56,7 @@ class TidalArtSource(RemoteArtSource):
         if not match:
             return
 
-        size = _config_value("art_size", 1280, int)
+        size = clamp_art_size(_config_value("art_size", 1280, int))
         yield cast(Any, self)._candidate(
             url=cover_url(match.cover, size),
             match=MetadataMatch.EXACT,
