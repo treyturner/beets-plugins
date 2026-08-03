@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import pathlib
+import stat
 
 import confuse
 import pytest
@@ -53,6 +55,32 @@ def test_refresh_token_is_saved_to_private_cache(tmp_path: pathlib.Path):
     cached = json.loads((tmp_path / "auth.json").read_text())
     assert cached["access_token"] == "new-access"
     assert oct((tmp_path / "auth.json").stat().st_mode & 0o777) == "0o600"
+
+
+def test_token_cache_atomically_replaces_existing_file_with_private_permissions(
+    monkeypatch: MonkeyPatch,
+    tmp_path: pathlib.Path,
+):
+    cache_path = tmp_path / "auth.json"
+    cache_path.write_text("old token data\n")
+    cache_path.chmod(0o644)
+    manager = AuthManager(cache_path=cache_path)
+    original_replace = os.replace
+    observed_temp_modes: list[int] = []
+
+    def inspect_replace(source: os.PathLike[str], destination: os.PathLike[str]) -> None:
+        observed_temp_modes.append(stat.S_IMODE(pathlib.Path(source).stat().st_mode))
+        assert pathlib.Path(destination) == cache_path
+        assert cache_path.read_text() == "old token data\n"
+        original_replace(source, destination)
+
+    monkeypatch.setattr(os, "replace", inspect_replace)
+
+    manager.save_token(TokenSet(access_token="private-access", refresh_token="private-refresh"))
+
+    assert observed_temp_modes == [0o600]
+    assert stat.S_IMODE(cache_path.stat().st_mode) == 0o600
+    assert json.loads(cache_path.read_text())["refresh_token"] == "private-refresh"
 
 
 def test_client_credentials_token_is_not_accepted_for_user_scope(tmp_path: pathlib.Path):

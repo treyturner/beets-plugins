@@ -4,6 +4,7 @@ import base64
 import binascii
 import json
 import os
+import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -349,11 +350,25 @@ class AuthManager:
     def save_token(self, token: TokenSet) -> None:
         self._memory_token = token
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        self.cache_path.write_text(json.dumps(token.to_json(), indent=2) + "\n")
+        temp_path: Path | None = None
         try:
-            self.cache_path.chmod(0o600)
-        except OSError:
-            pass
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=self.cache_path.parent,
+                prefix=f".{self.cache_path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temp_file:
+                temp_path = Path(temp_file.name)
+                temp_file.write(json.dumps(token.to_json(), indent=2) + "\n")
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            os.replace(temp_path, self.cache_path)
+        except Exception:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+            raise
 
     def _best_existing_token(self, *, require_user: bool) -> TokenSet | None:
         for token in (self._memory_token, self._configured_token, self.load_cached_token()):
