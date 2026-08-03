@@ -28,7 +28,7 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio",
 ]
 dependencies = [
-    "beets>=2.0",
+    "beets>=2.7",
     "beautifulsoup4>=4.12",
     "requests>=2.31",
 ]
