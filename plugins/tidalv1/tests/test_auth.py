@@ -12,6 +12,7 @@ import requests
 from conftest import FakeResponse, FakeSession
 from pytest import MonkeyPatch
 
+import beetsplug.tidalv1.auth as auth_module
 from beetsplug.tidalv1 import DEFAULT_CONFIG
 from beetsplug.tidalv1.auth import (
     DEFAULT_AUTH_CACHE_FILENAME,
@@ -23,6 +24,11 @@ from beetsplug.tidalv1.auth import (
     decode_v1_client_id_secret_b64,
     default_auth_cache_path,
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_discovered_app_credentials(monkeypatch: MonkeyPatch):
+    monkeypatch.setattr(auth_module, "_discovered_app_credentials", None)
 
 
 def test_refresh_token_is_saved_to_private_cache(tmp_path: pathlib.Path):
@@ -331,6 +337,24 @@ def test_from_config_applies_timeout_to_best_effort_credential_lookup(
 
     assert manager.require_client_credentials() == ("discovered-id", "discovered-secret")
     assert session.get_calls[0]["timeout"] == 2.5
+
+
+def test_from_config_caches_discovered_credentials_for_the_process(
+    monkeypatch: MonkeyPatch,
+):
+    monkeypatch.delenv("TIDAL_V1_CLIENT_ID", raising=False)
+    monkeypatch.delenv("TIDAL_V1_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("TIDAL_V1_CLIENT_ID_SECRET_B64", raising=False)
+    encoded_pair = base64.b64encode(b"discovered-id;discovered-secret").decode()
+    session = FakeSession(get=[FakeResponse(text=f'b64decode("{encoded_pair}")')])
+
+    first_manager = AuthManager.from_config(None, session=session)
+    second_manager = AuthManager.from_config(None, session=session)
+
+    expected_credentials = ("discovered-id", "discovered-secret")
+    assert first_manager.require_client_credentials() == expected_credentials
+    assert second_manager.require_client_credentials() == expected_credentials
+    assert len(session.get_calls) == 1
 
 
 def test_from_config_handles_best_effort_credential_lookup_network_failure(
