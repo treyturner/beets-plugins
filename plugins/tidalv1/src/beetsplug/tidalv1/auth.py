@@ -333,9 +333,11 @@ class AuthManager:
     def load_cached_token(self) -> TokenSet | None:
         try:
             payload = json.loads(self.cache_path.read_text())
-        except (OSError, json.JSONDecodeError):
+            if not isinstance(payload, dict):
+                return None
+            return TokenSet.from_mapping(cast(dict[str, Any], payload))
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
             return None
-        return TokenSet.from_mapping(payload)
 
     def save_token(self, token: TokenSet) -> None:
         self._memory_token = token
