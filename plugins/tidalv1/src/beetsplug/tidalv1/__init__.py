@@ -70,7 +70,7 @@ class TidalV1Plugin(BeetsPlugin):
             device = manager.start_device_authorization()
             url = device.verification_uri_complete or device.verification_uri
             ui.print_("OAuth login started; waiting for a response.")
-            ui.print_("Open this TIDAL authorization URL:", url)
+            ui.print_(f"Open this TIDAL authorization URL: {url}")
             ui.print_(f"If not auto-filled, use code: {device.user_code}")
             if opts.open:
                 webbrowser.open(url)
