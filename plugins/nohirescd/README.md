@@ -25,10 +25,10 @@ The defaults treat audio above 16-bit or 44.1 kHz as high resolution:
 nohirescd:
   max_bitdepth: 16
   max_samplerate: 44100
-  cd_media_pattern: '(?:^|[^A-Za-z0-9])CD(?:-R)?(?:$|[^A-Za-z0-9])'
+  cd_media_pattern: '(?:^|[^A-Za-z0-9])(?:HDCD|HQCD|CD(?:-R)?)(?:$|[^A-Za-z0-9])'
 ```
 
-The default media pattern matches values such as `CD`, `Enhanced CD`, `8cm CD`, `SHM-CD`, and `CD-R`. It deliberately does not match `SACD`.
+The default media pattern matches values such as `CD`, `Enhanced CD`, `8cm CD`, `SHM-CD`, `HDCD`, `HQCD`, and `CD-R`. It deliberately does not match `SACD`.
 
 ## Import behavior
 
