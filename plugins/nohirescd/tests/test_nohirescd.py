@@ -558,12 +558,22 @@ def test_reimport_delegates_exact_violating_album_ids(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    add_library_album(
+        library,
+        tmp_path / "Unrelated",
+        album="Unrelated",
+        albumartist="Unrelated Artist",
+        items=[{"title": "Unrelated 1"}, {"title": "Unrelated 2"}],
+    )
     wanted = add_library_album(
         library,
         tmp_path / "Wanted",
         album="Wanted",
         albumartist="Target Artist",
-        items=[{"bitdepth": 24}],
+        items=[
+            {"title": "Hi-Res Depth", "bitdepth": 24},
+            {"title": "Hi-Res Rate", "samplerate": 96_000},
+        ],
     )
     add_library_album(
         library,
@@ -582,9 +592,13 @@ def test_reimport_delegates_exact_violating_album_ids(
     called_lib, paths, query = import_files.call_args.args
     assert called_lib is library
     assert paths == []
-    assert query.field_name == "id"
+    assert query.field_name == "album_id"
     assert query.pattern == [wanted.id]
     assert [album.id for album in library.albums(query)] == [wanted.id]
+    assert [item.id for item in library.items(query)] == [item.id for item in wanted.items()]
+    colliding_item = library.get_item(wanted.id)
+    assert colliding_item is not None
+    assert colliding_item.album_id != wanted.id
     stdout = capsys.readouterr().out
     assert stdout == "Reimporting 1 violating album(s).\n"
     assert "Target Artist" not in stdout
