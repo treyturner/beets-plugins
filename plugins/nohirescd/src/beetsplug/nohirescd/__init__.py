@@ -274,7 +274,7 @@ class NoHiResCdPlugin(BeetsPlugin):
             cast(Any, import_command).import_files(
                 lib,
                 [],
-                InQuery("id", album_ids),
+                InQuery("album_id", album_ids),
             )
         finally:
             singletons.set(configured_singletons)
