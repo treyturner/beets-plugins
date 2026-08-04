@@ -57,7 +57,10 @@ tidalv1:
 
 If left empty, a best-effort attempt will be made to find it for you.
 
-Run `beet tidalv1-auth` once to authorize a TIDAL account. The command stores a refreshable token cache named `tidalv1_token.json` in beets' application config directory.
+Run `beet tidalv1 --auth` once to authorize a TIDAL account, mirroring the official
+`tidal` plugin's `beet tidal --auth` interface. The command opens the authorization
+URL in your browser and stores a refreshable token cache named `tidalv1_token.json`
+in beets' application config directory.
 
 ## Usage
 
