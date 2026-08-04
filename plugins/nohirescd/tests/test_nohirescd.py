@@ -13,7 +13,11 @@ from beets.autotag.distance import Distance
 from beets.importer import ImportTask
 from beets.library import Album, Item, Library
 
-from beetsplug.nohirescd import CSV_FIELDS, NoHiResCdPlugin
+from beetsplug.nohirescd import (
+    CSV_FIELDS,
+    DEFAULT_CD_MEDIA_PATTERN,
+    NoHiResCdPlugin,
+)
 
 
 def source_item(bitdepth: int | None, samplerate: int | None) -> SimpleNamespace:
@@ -104,7 +108,7 @@ def plugin() -> NoHiResCdPlugin:
     instance = NoHiResCdPlugin()
     instance.config["max_bitdepth"].set(16)
     instance.config["max_samplerate"].set(44_100)
-    instance.config["cd_media_pattern"].set(r"(?:^|[^A-Za-z0-9])CD(?:-R)?(?:$|[^A-Za-z0-9])")
+    instance.config["cd_media_pattern"].set(DEFAULT_CD_MEDIA_PATTERN)
     instance._log = Mock()
     return instance
 
@@ -164,7 +168,7 @@ def test_hires_limits_are_configurable(plugin: NoHiResCdPlugin) -> None:
 
 @pytest.mark.parametrize(
     "media",
-    ["CD", "Enhanced CD", "8cm CD", "SHM-CD", "CD-R", "CD + DVD"],
+    ["CD", "Enhanced CD", "8cm CD", "SHM-CD", "HDCD", "HQCD", "CD-R", "CD + DVD"],
 )
 def test_recognizes_cd_album_media(
     plugin: NoHiResCdPlugin,
@@ -380,6 +384,26 @@ def test_audit_excludes_nonviolations_and_singletons(
     )
 
     assert plugin._find_violations(library, None) == []
+
+
+@pytest.mark.parametrize("media", ["HDCD", "HQCD"])
+def test_audit_recognizes_embedded_cd_media(
+    plugin: NoHiResCdPlugin,
+    library: Library,
+    tmp_path: Path,
+    media: str,
+) -> None:
+    album = add_library_album(
+        library,
+        tmp_path / media,
+        album=f"Hi-Res {media}",
+        items=[{"media": media, "bitdepth": 24}],
+    )
+
+    violations = plugin._find_violations(library, None)
+
+    assert [violation.album.id for violation in violations] == [album.id]
+    assert violations[0].cd_media == (media,)
 
 
 def test_audit_uses_query_and_custom_configuration(

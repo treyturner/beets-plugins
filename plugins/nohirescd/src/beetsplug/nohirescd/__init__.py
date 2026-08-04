@@ -21,7 +21,7 @@ from beets.util import displayable_path
 
 DEFAULT_MAX_BITDEPTH = 16
 DEFAULT_MAX_SAMPLERATE = 44_100
-DEFAULT_CD_MEDIA_PATTERN = r"(?:^|[^A-Za-z0-9])CD(?:-R)?(?:$|[^A-Za-z0-9])"
+DEFAULT_CD_MEDIA_PATTERN = r"(?:^|[^A-Za-z0-9])(?:HDCD|HQCD|CD(?:-R)?)(?:$|[^A-Za-z0-9])"
 CSV_FIELDS = (
     "album_id",
     "mb_albumid",
