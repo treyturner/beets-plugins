@@ -289,7 +289,7 @@ class AuthManager:
 
         if require_user:
             raise AuthRequired(
-                "TIDAL lyrics require a user-scoped OAuth token; run `beet tidalv1-auth`."
+                "TIDAL lyrics require a user-scoped OAuth token; run `beet tidalv1 --auth`."
             )
 
         return self.client_credentials_token()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import webbrowser
+from contextlib import suppress
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any, cast
 
@@ -57,22 +58,27 @@ class TidalV1Plugin(BeetsPlugin):
         register_sources()
 
     def commands(self) -> list[Any]:
-        cmd = cast(Any, ui.Subcommand)("tidalv1-auth", help="authorize TIDAL for tidalv1")
+        cmd = cast(Any, ui.Subcommand)("tidalv1", help="TIDAL v1 plugin commands")
         cmd.parser.add_option(
-            "--open",
+            "-a",
+            "--auth",
             action="store_true",
             default=False,
-            help="open the authorization URL in a browser",
+            help="authenticate and log in to TIDAL",
         )
 
         def func(lib: Any, opts: Any, args: Any) -> None:
+            if not opts.auth:
+                cmd.print_help()
+                return
+
             manager = AuthManager.from_config(self.config)
             device = manager.start_device_authorization()
             url = device.verification_uri_complete or device.verification_uri
             ui.print_("OAuth login started; waiting for a response.")
             ui.print_(f"Open this TIDAL authorization URL: {url}")
             ui.print_(f"If not auto-filled, use code: {device.user_code}")
-            if opts.open:
+            with suppress(webbrowser.Error):
                 webbrowser.open(url)
 
             token = manager.poll_device_authorization(device, sleep=time.sleep)

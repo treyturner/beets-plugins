@@ -4,6 +4,7 @@ import logging
 from types import SimpleNamespace
 from typing import Any, cast
 
+import pytest
 from beets.util.config import sanitize_pairs
 from beets.util.lyrics import Lyrics
 
@@ -43,12 +44,35 @@ def test_auth_command_prints_authorization_url_in_one_message(monkeypatch):
         classmethod(lambda cls, config: manager),
     )
     monkeypatch.setattr(plugin.ui, "print_", messages.append)
+    opened_urls: list[str] = []
+    monkeypatch.setattr(plugin.webbrowser, "open", opened_urls.append)
 
     command = plugin.TidalV1Plugin().commands()[0]
-    command.func(None, SimpleNamespace(open=False), [])
+    assert command.name == "tidalv1"
+    for auth_flag in ("-a", "--auth"):
+        opts, args = command.parser.parse_args([auth_flag])
+        assert opts.auth
+    command.func(None, opts, args)
 
     assert "Open this TIDAL authorization URL: " + device.verification_uri_complete in messages
+    assert opened_urls == [device.verification_uri_complete]
     assert saved_tokens == [token]
+
+
+def test_auth_command_prints_help_when_auth_is_omitted(monkeypatch):
+    command = plugin.TidalV1Plugin().commands()[0]
+    help_calls: list[bool] = []
+    monkeypatch.setattr(command, "print_help", lambda: help_calls.append(True))
+    monkeypatch.setattr(
+        plugin.AuthManager,
+        "from_config",
+        classmethod(lambda cls, config: pytest.fail("authentication unexpectedly started")),
+    )
+    opts, args = command.parser.parse_args([])
+
+    command.func(None, opts, args)
+
+    assert help_calls == [True]
 
 
 def test_tidal_fetchart_source_accepts_plain_source_config():
