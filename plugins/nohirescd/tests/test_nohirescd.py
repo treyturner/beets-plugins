@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
-from beets import ui
+from beets import config, ui
 from beets.autotag import AlbumInfo, AlbumMatch, Recommendation, TrackInfo
 from beets.autotag.distance import Distance
 from beets.importer import ImportTask
@@ -564,6 +564,102 @@ def test_reimport_delegates_exact_violating_album_ids(
     stdout = capsys.readouterr().out
     assert stdout == "Reimporting 1 violating album(s).\n"
     assert "Target Artist" not in stdout
+
+
+def test_reimport_uses_album_mode_and_restores_singleton_configuration(
+    plugin: NoHiResCdPlugin,
+    library: Library,
+    tmp_path: Path,
+) -> None:
+    add_library_album(
+        library,
+        tmp_path / "Wanted",
+        album="Wanted",
+        items=[{"bitdepth": 24}],
+    )
+    command = plugin.commands()[0]
+    opts, args = command.parse_args(["--reimport"])
+    singletons = config["import"]["singletons"]
+    original_singletons = singletons.get(bool)
+    singletons.set(True)
+
+    def assert_album_mode(lib: Library, paths: list[bytes], query: object) -> None:
+        assert lib is library
+        assert paths == []
+        assert singletons.get(bool) is False
+        assert len(list(lib.albums(query))) == 1
+
+    try:
+        with patch(
+            "beetsplug.nohirescd.import_command.import_files",
+            side_effect=assert_album_mode,
+        ):
+            command.func(library, opts, args)
+
+        assert singletons.get(bool) is True
+    finally:
+        singletons.set(original_singletons)
+
+
+def test_reimport_restores_singleton_configuration_after_failure(
+    plugin: NoHiResCdPlugin,
+    library: Library,
+    tmp_path: Path,
+) -> None:
+    add_library_album(
+        library,
+        tmp_path / "Wanted",
+        album="Wanted",
+        items=[{"bitdepth": 24}],
+    )
+    command = plugin.commands()[0]
+    opts, args = command.parse_args(["--reimport"])
+    singletons = config["import"]["singletons"]
+    original_singletons = singletons.get(bool)
+    singletons.set(True)
+
+    try:
+        with (
+            patch(
+                "beetsplug.nohirescd.import_command.import_files",
+                side_effect=RuntimeError("import failed"),
+            ),
+            pytest.raises(RuntimeError, match="import failed"),
+        ):
+            command.func(library, opts, args)
+
+        assert singletons.get(bool) is True
+    finally:
+        singletons.set(original_singletons)
+
+
+def test_reimport_requires_autotagging(
+    plugin: NoHiResCdPlugin,
+    library: Library,
+    tmp_path: Path,
+) -> None:
+    add_library_album(
+        library,
+        tmp_path / "Wanted",
+        album="Wanted",
+        items=[{"bitdepth": 24}],
+    )
+    command = plugin.commands()[0]
+    opts, args = command.parse_args(["--reimport"])
+    autotag = config["import"]["autotag"]
+    original_autotag = autotag.get(bool)
+    autotag.set(False)
+
+    try:
+        with (
+            patch("beetsplug.nohirescd.import_command.import_files") as import_files,
+            pytest.raises(ui.UserError, match="requires import.autotag"),
+        ):
+            command.func(library, opts, args)
+
+        import_files.assert_not_called()
+    finally:
+        autotag.set(original_autotag)
 
 
 def test_reimport_does_not_start_session_without_violations(

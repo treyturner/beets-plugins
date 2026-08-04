@@ -83,7 +83,7 @@ beet nohirescd --reimport
 beet nohirescd --reimport year:1990..1999
 ```
 
-The command preserves the normal `import` configuration and prompts. The `nohirescd` candidate filter remains active during reimport. Depending on the beets import configuration and choices made during the session, reimporting can update library metadata and files. `--reimport` cannot be combined with `--output`.
+The command preserves the normal `import` configuration and prompts, except that it always runs this album-only audit's results through album import mode. Any configured singleton mode is restored when the command finishes. Because the `nohirescd` candidate filter must run during reimport, `import.autotag` must be enabled. Depending on the beets import configuration and choices made during the session, reimporting can update library metadata and files. `--reimport` cannot be combined with `--output`.
 
 ## Development
 
