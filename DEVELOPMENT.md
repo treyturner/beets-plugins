@@ -3,8 +3,9 @@
 This repository is a uv-managed Python monorepo for custom [Beets](https://beets.io/) plugins. It currently contains:
 
 - **tidalv1** – TIDAL v1 sources for the built-in lyrics and fetchart plugins.
+- **nohirescd** – import filtering and library audits for high-resolution audio matched to CD releases.
 
-`tidalv1` supports Python 3.10–3.14. Each plugin is independently versioned and packaged from its own directory under `plugins/`.
+Both plugins support Python 3.10–3.14. Each plugin is independently versioned and packaged from its own directory under `plugins/`.
 
 ## Tooling
 

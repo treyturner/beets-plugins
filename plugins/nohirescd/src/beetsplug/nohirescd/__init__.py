@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 
-from beets import ui
+from beets import config, ui
 from beets.autotag import AlbumMatch
 from beets.autotag.match import _recommendation  # pyright: ignore[reportPrivateUsage]
 from beets.dbcore.query import InQuery
@@ -263,12 +263,21 @@ class NoHiResCdPlugin(BeetsPlugin):
             ui.print_("No nohirescd violations found; nothing to reimport.")
             return
 
+        if not config["import"]["autotag"].get(bool):
+            raise UserError("--reimport requires import.autotag to be enabled")
+
         ui.print_(f"Reimporting {len(album_ids)} violating album(s).")
-        cast(Any, import_command).import_files(
-            lib,
-            [],
-            InQuery("id", album_ids),
-        )
+        singletons = config["import"]["singletons"]
+        configured_singletons = singletons.get(bool)
+        singletons.set(False)
+        try:
+            cast(Any, import_command).import_files(
+                lib,
+                [],
+                InQuery("id", album_ids),
+            )
+        finally:
+            singletons.set(configured_singletons)
 
     def _filter_candidates(
         self,
