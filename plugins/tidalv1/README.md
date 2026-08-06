@@ -57,10 +57,7 @@ tidalv1:
 
 If left empty, a best-effort attempt will be made to find it for you.
 
-Run `beet tidalv1 --auth` once to authorize a TIDAL account, mirroring the official
-`tidal` plugin's `beet tidal --auth` interface. The command opens the authorization
-URL in your browser and stores a refreshable token cache named `tidalv1_token.json`
-in beets' application config directory.
+Run `beet tidalv1 --auth` once to authorize a TIDAL account, mirroring the official `tidal` plugin's `beet tidal --auth` interface. The command opens the authorization URL in your browser and stores a refreshable token cache named `tidalv1_token.json` in beets' application config directory.
 
 ## Usage
 
@@ -77,6 +74,8 @@ beet fetchart -f album:"Discovery"
 ```
 
 During imports, the built-in `lyrics` and `fetchart` plugins handle automatic updates when their own `auto` settings are enabled.
+
+All TIDAL requests share a process-wide HTTP session limited to 4 requests/sec. HTTP 429 responses are retried up to six times with exponential backoff, and `Retry-After` is honored if provided. If retries remain exhausted, lyrics and artwork sources log one warning and allow the next configured source to run.
 
 ## Development
 

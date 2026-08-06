@@ -13,9 +13,13 @@ from .auth import (
     DEFAULT_AUTH_BASE,
     DEFAULT_AUTH_CACHE_FILENAME,
     AuthManager,
+    DeviceAuthExpired,
 )
 from .client import DEFAULT_API_BASE
 from .sources import register_sources
+
+# ``UserError`` moved to ``beets.exceptions`` after the minimum supported beets 2.7.
+UserError = cast(type[Exception], cast(Any, ui).UserError)
 
 try:
     __version__ = version("beets-tidalv1")
@@ -81,7 +85,12 @@ class TidalV1Plugin(BeetsPlugin):
             with suppress(webbrowser.Error):
                 webbrowser.open(url)
 
-            token = manager.poll_device_authorization(device, sleep=time.sleep)
+            try:
+                token = manager.poll_device_authorization(device, sleep=time.sleep)
+            except DeviceAuthExpired as exc:
+                raise UserError(
+                    "TIDAL authorization timed out. Run `beet tidalv1 --auth` to try again."
+                ) from exc
             manager.save_token(token)
             ui.print_(f"TIDAL authorization saved to {manager.cache_path}")
 
