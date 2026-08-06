@@ -10,8 +10,8 @@ from beets.util.lyrics import Lyrics
 
 import beetsplug.tidalv1 as plugin
 from beetsplug import fetchart, lyrics
-from beetsplug.tidalv1.auth import DeviceCode, TokenSet
-from beetsplug.tidalv1.client import AlbumMatch, LyricsResult, TrackMatch
+from beetsplug.tidalv1.auth import DeviceAuthExpired, DeviceCode, TokenSet
+from beetsplug.tidalv1.client import AlbumMatch, LyricsResult, TidalAPIError, TrackMatch
 from beetsplug.tidalv1.sources import TidalArtSource, TidalV1
 
 
@@ -75,6 +75,40 @@ def test_auth_command_prints_help_when_auth_is_omitted(monkeypatch):
     assert help_calls == [True]
 
 
+def test_auth_command_reports_device_authorization_timeout(monkeypatch):
+    device = DeviceCode(
+        device_code="device",
+        user_code="ABCD",
+        verification_uri="https://login.tidal.com/device",
+        verification_uri_complete=None,
+        expires_in=30,
+    )
+
+    def poll_device_authorization(received_device, sleep):
+        raise DeviceAuthExpired("TIDAL device authorization expired")
+
+    manager = SimpleNamespace(
+        start_device_authorization=lambda: device,
+        poll_device_authorization=poll_device_authorization,
+        save_token=lambda token: pytest.fail("expired token unexpectedly saved"),
+    )
+    monkeypatch.setattr(
+        plugin.AuthManager,
+        "from_config",
+        classmethod(lambda cls, config: manager),
+    )
+    monkeypatch.setattr(plugin.webbrowser, "open", lambda url: True)
+
+    command = plugin.TidalV1Plugin().commands()[0]
+    opts, args = command.parser.parse_args(["--auth"])
+
+    with pytest.raises(
+        plugin.UserError,
+        match=r"TIDAL authorization timed out.*beet tidalv1 --auth.*try again",
+    ):
+        command.func(None, opts, args)
+
+
 def test_tidal_fetchart_source_accepts_plain_source_config():
     available_sources = [
         (source.ID, criterion)
@@ -136,3 +170,40 @@ def test_tidal_art_source_yields_candidate(monkeypatch):
     assert candidates[0].url.endswith("/1280x1280.jpg")
     assert candidates[0].size == (1280, 1280)
     assert candidates[0].source_name == "tidalv1"
+
+
+def test_tidal_backend_warns_once_and_returns_no_result_after_retry_exhaustion(
+    monkeypatch,
+):
+    def raise_rate_limit(*args, **kwargs):
+        raise TidalAPIError("TIDAL API request failed with HTTP 429")
+
+    fake_client = SimpleNamespace(lyrics_for=raise_rate_limit)
+    monkeypatch.setattr("beetsplug.tidalv1.sources.client_from_config", lambda config: fake_client)
+    messages: list[str] = []
+    log = SimpleNamespace(warning=lambda message, *args: messages.append(message.format(*args)))
+    backend = TidalV1(config=cast(Any, None), log=cast(Any, log))
+
+    result = backend.fetch("Daft Punk", "Get Lucky", "Random Access Memories", 369)
+
+    assert result is None
+    assert messages == ["TidalV1: TIDAL API request failed with HTTP 429"]
+
+
+def test_tidal_art_source_warns_once_and_returns_no_candidate_after_retry_exhaustion(
+    monkeypatch,
+):
+    def raise_rate_limit(*args, **kwargs):
+        raise TidalAPIError("TIDAL API request failed with HTTP 429")
+
+    fake_client = SimpleNamespace(find_album=raise_rate_limit)
+    monkeypatch.setattr("beetsplug.tidalv1.sources.client_from_config", lambda config: fake_client)
+    messages: list[str] = []
+    log = SimpleNamespace(warning=lambda message, *args: messages.append(message.format(*args)))
+    source = TidalArtSource(cast(Any, log), config=cast(Any, {}))
+    album = SimpleNamespace(albumartist="Daft Punk", album="Random Access Memories")
+
+    candidates = list(source.get(album, plugin=SimpleNamespace(), paths=None))
+
+    assert candidates == []
+    assert messages == ["TIDAL art source failed: TIDAL API request failed with HTTP 429"]

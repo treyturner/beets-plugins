@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Any, cast
 
-import requests
-
 from .auth import AuthManager
 from .http_types import HTTPSession, ResponseLike
 
@@ -74,7 +72,7 @@ class TidalClient:
         self.country_code = country_code
         self.search_limit = search_limit
         self.request_timeout = request_timeout
-        self.session: HTTPSession = session or cast(HTTPSession, requests.Session())
+        self.session: HTTPSession = session or auth.session
 
     def search_tracks(self, query: str) -> list[dict[str, Any]]:
         payload = self._request(

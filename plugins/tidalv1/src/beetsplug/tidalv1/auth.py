@@ -17,6 +17,7 @@ import confuse
 import requests
 from beets import config as beets_config
 
+from .http import credential_discovery_session, tidal_session
 from .http_types import HTTPSession, ResponseLike
 
 DEFAULT_AUTH_BASE = "https://auth.tidal.com/v1/oauth2"
@@ -136,7 +137,7 @@ class AuthManager:
         self.auth_base = auth_base.rstrip("/")
         self.country_code = country_code
         self.request_timeout = request_timeout
-        self.session: HTTPSession = session or cast(HTTPSession, requests.Session())
+        self.session: HTTPSession = session or cast(HTTPSession, tidal_session())
         self.cache_path = Path(cache_path).expanduser() if cache_path else default_auth_cache_path()
         self._memory_token: TokenSet | None = None
         self._configured_token = (
@@ -174,7 +175,7 @@ class AuthManager:
                     v1_client_id_secret_b64
                 )
             else:
-                credential_session = session or cast(HTTPSession, requests.Session())
+                credential_session = session or cast(HTTPSession, credential_discovery_session())
                 discovered_credentials = _discover_app_credentials(
                     credential_session, request_timeout
                 )

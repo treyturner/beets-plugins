@@ -96,6 +96,7 @@ dependencies = [
     { name = "beautifulsoup4" },
     { name = "beets" },
     { name = "requests" },
+    { name = "urllib3" },
 ]
 
 [package.dev-dependencies]
@@ -114,6 +115,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12" },
     { name = "beets", specifier = ">=2.7" },
     { name = "requests", specifier = ">=2.31" },
+    { name = "urllib3", specifier = ">=2" },
 ]
 
 [package.metadata.requires-dev]
