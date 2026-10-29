@@ -61,7 +61,7 @@ jobs:
           uv run python scripts/validate_versions.py
           --plugin "${{ steps.detect.outputs.plugin_name }}"
       - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d # v7.2.0
+        uses: stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1
         with:
           commit_message: >-
             chore(${{ steps.detect.outputs.plugin_name }}): bump version to v${{ steps.bump.outputs.new_version }} [skip release]
