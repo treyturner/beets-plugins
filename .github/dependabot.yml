@@ -80,7 +80,10 @@ updates:
 
   # Preserve the repository's full-SHA pinning while refreshing action versions.
   - package-ecosystem: "github-actions"
-    directory: "/"
+    # Include local composite actions, which are not scanned from "/" alone.
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: "weekly"
       day: "thursday"
