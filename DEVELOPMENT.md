@@ -60,7 +60,7 @@ Repository-level tooling is only needed for shared scripts/workflows.
 - **Test / Build** – ensure the impacted plugin(s) still lint, test, and package correctly.
 - **Coverage** – on every PR, coverage is computed for both the base ref and the PR head and the build fails if coverage drops.
 - **Versioning** – optional manual workflow to bump a plugin's version outside the automated flow.
-- **Release** – runs on pushes to `main`. It walks every commit in the push (`before..after` on main's first-parent line), ignores commits marked `[skip release]`, and detects each plugin the remaining commits touched. Each detected plugin is then released in its own matrix leg, one at a time: patch bump via `semver`, version validation, tests, build, PyPI publish, a `[skip release]` release commit (rebased onto the latest `main` before pushing), and a tag.
+- **Release** – runs on pushes to `main`. It walks every commit in the push (`before..after` on main's first-parent line), ignores commits marked `[skip release]`, and detects each plugin the remaining commits touched. Each detected plugin is then released in its own matrix leg, one at a time: patch bump via `semver`, version validation, tests, build, PyPI publish, a `[skip release]` release commit of the plugin's `pyproject.toml` and `uv.lock` (rebased onto the latest `main` before pushing), and a tag.
 - **Publish** – manually builds, publishes, and tags the selected plugin's committed version through PyPI Trusted Publishing.
 
 See `.github/workflows/` for exact behavior, including automatic plugin detection via `scripts/detect_plugins.py`.
