@@ -17,7 +17,7 @@ from beets.importer import ImportSession, ImportTask
 from beets.library import Album, Item, Library
 from beets.plugins import BeetsPlugin
 from beets.ui.commands import import_ as import_command
-from beets.util import displayable_path
+from beets.util import PromptChoice, displayable_path
 
 DEFAULT_MAX_BITDEPTH = 16
 DEFAULT_MAX_SAMPLERATE = 44_100
@@ -63,13 +63,12 @@ class NoHiResCdPlugin(BeetsPlugin):
                 "cd_media_pattern": DEFAULT_CD_MEDIA_PATTERN,
             }
         )
-        self.register_listener(
-            "import_task_before_choice",
-            self._filter_candidates,
-        )
-        self.register_listener(
+        # Beets 2.14 annotates listeners as Callable[[Unpack[TypedDict]], ...], which mypy
+        # checks but Pyright cannot resolve, so suppress only Pyright on these calls.
+        self.register_listener("import_task_before_choice", self._filter_candidates)  # pyright: ignore
+        self.register_listener(  # pyright: ignore
             "before_choose_candidate",
-            self._filter_candidates,
+            self._filter_candidates_before_prompt,  # pyright: ignore
         )
 
     def commands(self) -> list[Any]:
@@ -278,6 +277,15 @@ class NoHiResCdPlugin(BeetsPlugin):
             )
         finally:
             singletons.set(configured_singletons)
+
+    def _filter_candidates_before_prompt(
+        self,
+        task: ImportTask,
+        session: ImportSession,
+    ) -> list[PromptChoice]:
+        """Filter candidates before the prompt without adding prompt choices."""
+        self._filter_candidates(task, session)
+        return []
 
     def _filter_candidates(
         self,

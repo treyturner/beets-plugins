@@ -127,7 +127,17 @@ def test_registers_both_candidate_filter_events(
     plugin: NoHiResCdPlugin,
 ) -> None:
     assert plugin._filter_candidates in plugin._raw_listeners["import_task_before_choice"]
-    assert plugin._filter_candidates in plugin._raw_listeners["before_choose_candidate"]
+    assert (
+        plugin._filter_candidates_before_prompt in plugin._raw_listeners["before_choose_candidate"]
+    )
+
+
+def test_before_prompt_filter_adds_no_prompt_choices(
+    plugin: NoHiResCdPlugin,
+) -> None:
+    task = Mock(is_album=False)
+
+    assert plugin._filter_candidates_before_prompt(task, Mock()) == []
 
 
 def test_registers_audit_command(plugin: NoHiResCdPlugin) -> None:
