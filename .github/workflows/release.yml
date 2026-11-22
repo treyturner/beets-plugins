@@ -10,46 +10,81 @@ permissions:
 
 jobs:
   analyze:
-    if: ${{ !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-latest
     outputs:
-      plugin_name: ${{ steps.detect.outputs.plugin_name }}
       plugin_count: ${{ steps.detect.outputs.plugin_count }}
-      plugin_path: ${{ steps.detect.outputs.plugin_path }}
-      package_name: ${{ steps.detect.outputs.package_name }}
+      plugin_names: ${{ steps.detect.outputs.plugin_names }}
+      plugin_matrix: ${{ steps.detect.outputs.plugin_matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      # A single push can carry several commits (for example a rebase-merged
+      # PR stack). Walk every pushed commit on main's first-parent line, skip
+      # those marked [skip release], and collect the files the rest changed.
       - name: Determine changed files
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
         run: |
-          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
-            git diff --name-only HEAD^ HEAD > /tmp/changed.txt
+          : > /tmp/changed.txt
+          if [[ -n "$BEFORE" && ! "$BEFORE" =~ ^0+$ ]] \
+            && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            commits=$(git rev-list --reverse --first-parent "$BEFORE..$AFTER")
           else
-            git ls-tree -r --name-only HEAD > /tmp/changed.txt
+            echo "::notice::No usable push base '$BEFORE'; inspecting $AFTER only"
+            commits=$AFTER
           fi
-      - name: Detect plugin touched in push
+          {
+            echo "### Commits in push"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          for sha in $commits; do
+            subject=$(git log -1 --format=%s "$sha")
+            if git log -1 --format=%B "$sha" | grep -qiF '[skip release]'; then
+              echo "skip     ${sha:0:12} $subject"
+              echo "- skipped \`${sha:0:12}\` $subject" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            echo "consider ${sha:0:12} $subject"
+            echo "- considered \`${sha:0:12}\` $subject" >> "$GITHUB_STEP_SUMMARY"
+            if git rev-parse --verify --quiet "$sha^" >/dev/null; then
+              git diff --name-only "$sha^" "$sha" >> /tmp/changed.txt
+            else
+              git ls-tree -r --name-only "$sha" >> /tmp/changed.txt
+            fi
+          done
+      - name: Detect plugins touched in push
         id: detect
         run: |
           python scripts/detect_plugins.py \
             --files-from /tmp/changed.txt \
+            --allow-multiple \
             --allow-empty \
             --github-output "$GITHUB_OUTPUT"
 
   release:
+    name: release (${{ matrix.plugin }})
     needs: analyze
-    if: needs.analyze.outputs.plugin_count != '0' && !contains(github.event.head_commit.message, '[skip release]')
+    if: needs.analyze.outputs.plugin_count != '0'
     runs-on: ubuntu-latest
     environment: pypi
+    strategy:
+      # Legs push release commits to main, so run them one at a time and keep
+      # going when one plugin fails so the others still release.
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        plugin: ${{ fromJSON(needs.analyze.outputs.plugin_matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - uses: ./.github/actions/run-lint
       - name: Ensure plugin environment
-        run: ./scripts/sync_plugins.py "plugins/${{ needs.analyze.outputs.plugin_name }}"
+        run: ./scripts/sync_plugins.py "plugins/${{ matrix.plugin }}"
       - name: Type check plugin
-        working-directory: plugins/${{ needs.analyze.outputs.plugin_name }}
+        working-directory: plugins/${{ matrix.plugin }}
         run: uv run mypy
       - name: Determine bump type
         id: bump_part
@@ -58,41 +93,53 @@ jobs:
         id: bump
         run: |
           uv run python scripts/bump_version.py \
-            --plugin "${{ needs.analyze.outputs.plugin_name }}" \
+            --plugin "${{ matrix.plugin }}" \
             --part "${{ steps.bump_part.outputs.part }}" \
             --github-output "$GITHUB_OUTPUT"
       - name: Validate release version
         run: >-
           uv run python scripts/validate_versions.py
-          --plugin "${{ needs.analyze.outputs.plugin_name }}"
+          --plugin "${{ matrix.plugin }}"
       - name: Run plugin tests
         run: |
-          TARGET="plugins/${{ needs.analyze.outputs.plugin_name }}/tests"
+          TARGET="plugins/${{ matrix.plugin }}/tests"
           if [ -d "$TARGET" ]; then
-            uv run --project "plugins/${{ needs.analyze.outputs.plugin_name }}" pytest "$TARGET"
+            uv run --project "plugins/${{ matrix.plugin }}" pytest "$TARGET"
           else
-            echo "No tests for plugins/${{ needs.analyze.outputs.plugin_name }}"
+            echo "No tests for plugins/${{ matrix.plugin }}"
           fi
       - name: Build plugin
-        working-directory: plugins/${{ needs.analyze.outputs.plugin_name }}
+        working-directory: plugins/${{ matrix.plugin }}
         run: uv build
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
-          packages-dir: plugins/${{ needs.analyze.outputs.plugin_name }}/dist
+          packages-dir: plugins/${{ matrix.plugin }}/dist
           print-hash: true
       - name: Commit version bump
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "plugins/${{ needs.analyze.outputs.plugin_name }}/pyproject.toml"
+          git add "plugins/${{ matrix.plugin }}/pyproject.toml"
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0
           fi
-          git commit -m "chore(${{ needs.analyze.outputs.plugin_name }}): release v${{ steps.bump.outputs.new_version }} [skip release]"
-          git push origin HEAD
+          git commit -m "chore(${{ matrix.plugin }}): release v${{ steps.bump.outputs.new_version }} [skip release]"
+          # Earlier legs of this run (or other pushes) may have advanced main
+          # since checkout, so rebase onto the latest main before pushing.
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:refs/heads/main; then
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; retrying"
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not push release commit for ${{ matrix.plugin }} after 5 attempts"
+          exit 1
       - name: Tag release
         run: |
-          git tag "${{ needs.analyze.outputs.plugin_name }}-v${{ steps.bump.outputs.new_version }}"
-          git push origin "${{ needs.analyze.outputs.plugin_name }}-v${{ steps.bump.outputs.new_version }}"
+          git tag "${{ matrix.plugin }}-v${{ steps.bump.outputs.new_version }}"
+          git push origin "${{ matrix.plugin }}-v${{ steps.bump.outputs.new_version }}"
