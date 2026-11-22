@@ -12,7 +12,7 @@ TIDAL v2 does not currently expose the same lyrics payload.
 
 ## Install
 
-`beets-tidalv1` requires Beets 2.7 or newer and Python 3.10–3.14.
+`beets-tidalv1` requires Beets 2.7 or newer and Python 3.11–3.14.
 
 ```sh
 python -m pip install "beets-tidalv1 @ git+https://github.com/treyturner/beets-plugins.git#subdirectory=plugins/tidalv1"
