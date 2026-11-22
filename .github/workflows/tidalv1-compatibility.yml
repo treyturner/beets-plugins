@@ -1,8 +1,8 @@
 name: tidalv1 compatibility
 
 on:
+  # Run on every PR, not only those targeting main, so stacked PRs get coverage.
   pull_request:
-    branches: ["main"]
     paths:
       - "plugins/tidalv1/**"
       - ".github/workflows/tidalv1-compatibility.yml"

@@ -1,8 +1,8 @@
 name: nohirescd compatibility
 
 on:
+  # Run on every PR, not only those targeting main, so stacked PRs get coverage.
   pull_request:
-    branches: ["main"]
     paths:
       - "plugins/nohirescd/**"
       - ".github/workflows/nohirescd-compatibility.yml"
