@@ -60,7 +60,7 @@ Repository-level tooling is only needed for shared scripts/workflows.
 - **Test / Build** – ensure the impacted plugin(s) still lint, test, and package correctly.
 - **Coverage** – on every PR, coverage is computed for both the base ref and the PR head and the build fails if coverage drops.
 - **Versioning** – optional manual workflow to bump a plugin's version outside the automated flow.
-- **Release** – runs on pushes to `main`, detects the touched plugin, bumps its version via `semver`, runs tests, builds, publishes to PyPI, and tags the release.
+- **Release** – runs on pushes to `main`. It walks every commit in the push (`before..after` on main's first-parent line), ignores commits marked `[skip release]`, and detects each plugin the remaining commits touched. Each detected plugin is then released in its own matrix leg, one at a time: patch bump via `semver`, version validation, tests, build, PyPI publish, a `[skip release]` release commit (rebased onto the latest `main` before pushing), and a tag.
 - **Publish** – manually builds, publishes, and tags the selected plugin's committed version through PyPI Trusted Publishing.
 
 See `.github/workflows/` for exact behavior, including automatic plugin detection via `scripts/detect_plugins.py`.
@@ -77,10 +77,10 @@ To promote a plugin to a stable API:
 
 After promotion, normal merges use the same automatic patch-release process without the `0.x.y` restriction. Removing a stable exemption while the plugin has a `1.x` or later version fails validation.
 
-Conventional Commit labels do not select a version increment in this repository. `feat`, `fix`, `!`, and `BREAKING CHANGE` have no special release effect: automatic releases always apply a patch increment. The `[skip release]` marker is the only commit-message control and suppresses the automatic release workflow.
+Conventional Commit labels do not select a version increment in this repository. `feat`, `fix`, `!`, and `BREAKING CHANGE` have no special release effect: automatic releases always apply a patch increment. The `[skip release]` marker is the only commit-message control. It is evaluated per commit: a marked commit contributes nothing to the release, while unmarked commits in the same push still release the plugins they touched.
 
 ## Contribution guidelines
 
 1. Inside the plugin you're touching, run `uv sync --group dev` and `pre-commit install` to enable the plugin-local hooks (ruff format/check and mypy). Run coverage per plugin with `uv run pytest --cov=plugins/<name> --cov-report=term-missing`.
-2. Keep feature branches focused on a single plugin so the release automation can confidently bump its version.
-3. Merges to `main` automatically trigger the `release` workflow, which bumps the plugin version (patch by default) using the Python `semver` library, publishes to PyPI via trusted publishing, and pushes a `[skip release]` commit plus a `<plugin>-vX.Y.Z` tag. No manual intervention is needed unless the automation is bypassed.
+2. Keep each commit focused on a single plugin so the release automation can confidently bump its version. A stack of PRs merged in one push is fine: every plugin touched by a releasable commit gets exactly one patch release.
+3. Merges to `main` automatically trigger the `release` workflow, which bumps each touched plugin's version (patch by default) using the Python `semver` library, publishes to PyPI via trusted publishing, and pushes a `[skip release]` commit plus a `<plugin>-vX.Y.Z` tag per plugin. No manual intervention is needed unless the automation is bypassed.
