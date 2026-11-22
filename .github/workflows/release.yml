@@ -121,18 +121,31 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "plugins/${{ matrix.plugin }}/pyproject.toml"
+          # uv.lock records the plugin's own version, so the `uv run` steps after
+          # the bump rewrite it. Commit it with the bump to keep the lock in sync.
+          if [ -f "plugins/${{ matrix.plugin }}/uv.lock" ]; then
+            git add "plugins/${{ matrix.plugin }}/uv.lock"
+          fi
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0
           fi
           git commit -m "chore(${{ matrix.plugin }}): release v${{ steps.bump.outputs.new_version }} [skip release]"
+          # Rebasing needs a clean tree, so name anything a step left behind.
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "::error::Uncommitted changes would block the rebase onto main:"
+            git status --short --untracked-files=no
+            exit 1
+          fi
           # Earlier legs of this run (or other pushes) may have advanced main
           # since checkout, so rebase onto the latest main before pushing.
           for attempt in 1 2 3 4 5; do
-            git fetch origin main
-            git rebase origin/main
-            if git push origin HEAD:refs/heads/main; then
-              exit 0
+            if git fetch origin main && git rebase origin/main; then
+              if git push origin HEAD:refs/heads/main; then
+                exit 0
+              fi
+            else
+              git rebase --abort 2>/dev/null || true
             fi
             echo "Push attempt $attempt failed; retrying"
             sleep $((attempt * 5))
